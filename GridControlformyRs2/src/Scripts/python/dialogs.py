@@ -119,7 +119,7 @@ def createDialog(xscriptcontext, enhancedmouseevent):
 		textbox1["Width"] = gridprops["Width"]
 		textbox1["Text"] = doc.getCurrentSelection().getString()  # セルの文字列を取得してテキストボックスに表示する。
 		addControl("Edit", textbox1)  
-		button1, button2, button3, button4, button5 = [buttonprops.copy() for dummy in range(2)]
+		button1, button2, button3, button4, button5 = [buttonprops.copy() for dummy in range(5)]
 		
 		
 		
