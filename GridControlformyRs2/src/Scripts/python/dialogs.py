@@ -1,23 +1,23 @@
 #!/opt/libreoffice5.4/program/python
 # -*- coding: utf-8 -*-
 import unohelper  # オートメーションには必須(必須なのはuno)。import pydevd; pydevd.settrace(stdoutToServer=True, stderrToServer=True)
-from datetime import datetime
+# from datetime import datetime
 import json
 from com.sun.star.accessibility import AccessibleRole  # 定数
 from com.sun.star.awt import XActionListener
 from com.sun.star.awt import XEnhancedMouseClickHandler
-# from com.sun.star.awt import XMenuListener, XItemListener
-# from com.sun.star.awt import XMouseListener
+from com.sun.star.awt import XMenuListener, XItemListener
+from com.sun.star.awt import XMouseListener
 from com.sun.star.awt import MouseButton, PosSize  # 定数
-# from com.sun.star.awt import PopupMenuDirection  # 定数
-# from com.sun.star.awt import Rectangle  # Struct
-# from com.sun.star.awt import ScrollBarOrientation  # 定数
+from com.sun.star.awt import PopupMenuDirection  # 定数
+from com.sun.star.awt import Rectangle  # Struct
+from com.sun.star.awt import ScrollBarOrientation  # 定数
 from com.sun.star.document import XDocumentEventListener
 from com.sun.star.util import XCloseListener
 # from com.sun.star.view.SelectionType import MULTI  # enum 
-# from com.sun.star.awt.MessageBoxType import QUERYBOX  # enum
-# from com.sun.star.awt import MessageBoxButtons  # 定数
-# from com.sun.star.awt import MessageBoxResults  # 定数
+from com.sun.star.awt.MessageBoxType import QUERYBOX  # enum
+from com.sun.star.awt import MessageBoxButtons  # 定数
+from com.sun.star.awt import MessageBoxResults  # 定数
 from com.sun.star.awt.grid import XGridSelectionListener
 from com.sun.star.sheet import CellFlags  # 定数
 from com.sun.star.awt import Point  # Struct
@@ -26,6 +26,7 @@ from com.sun.star.frame import XFrameActionListener
 from com.sun.star.frame.FrameAction import FRAME_UI_DEACTIVATING  # enum
 from com.sun.star.beans import NamedValue  # Struct
 from com.sun.star.awt import XWindowListener
+from com.sun.star.awt import Selection  # Struct
 def macro(documentevent=None):  # 引数は文書のイベント駆動用。import pydevd; pydevd.settrace(stdoutToServer=True, stderrToServer=True)
 	ctx = XSCRIPTCONTEXT.getComponentContext()  # コンポーネントコンテクストの取得。
 	doc = XSCRIPTCONTEXT.getDocument()  # マクロを起動した時のドキュメントのモデルを取得。   
@@ -88,25 +89,25 @@ def createDialog(xscriptcontext, enhancedmouseevent):
 		maTopx = createConverters(containerwindow)  # ma単位をピクセルに変換する関数を取得。
 		controlcontainer, addControl = controlcontainerMaCreator(ctx, smgr, maTopx, controlcontainerprops)  # コントロールコンテナの作成。		
 		gridselectionlistener = GridSelectionListener()
-		gridcontrol1 = addControl("Grid", gridprops, {"addSelectionListener": gridselectionlistener})  # グリッドコントロールの取得。gridは他のコントロールの設定に使うのでコピーを渡す。
 		
+		mouselistener = MouseListener(xscriptcontext)
 		
+		gridcontrol1 = addControl("Grid", gridprops, {"addMouseListener": mouselistener, "addSelectionListener": gridselectionlistener})  # グリッドコントロールの取得。gridは他のコントロールの設定に使うのでコピーを渡す。
 		gridmodel = gridcontrol1.getModel()  # グリッドコントロールモデルの取得。
 		gridcolumn = gridmodel.getPropertyValue("ColumnModel")  # DefaultGridColumnModel
 		column0 = gridcolumn.createColumn()  # 列の作成。
 		gridcolumn.addColumn(column0)  # 列を追加。
-		
-		
 		griddata = gridmodel.getPropertyValue("GridDataModel")  # GridDataModel
 		datarows = getSavedData(doc, "GridDatarows_{}".format(dialogtitle))  # グリッドコントロールの行をconfigシートのragenameから取得する。	
 
-		now = datetime.now()  # 現在の日時を取得。
-		t = now.isoformat()
+# 		now = datetime.now()  # 現在の日時を取得。
+# 		t = now.isoformat()
 
 		if datarows:  # 行のリストが取得出来た時。
-			griddata.insertRows(0, ("",)*len(datarows), datarows)  # グリッドに行を挿入。
-		else:
-			griddata.addRow("", (t,))  # 新規行を追加。
+			griddata.addRows(("",)*len(datarows), datarows)  # グリッドに行を追加。
+# 			griddata.insertRows(0, ("",)*len(datarows), datarows)  # グリッドに行を挿入。
+# 		else:
+# 			griddata.addRow("", (t,))  # 新規行を追加。
 		addControl("Edit", textboxprops)  
 		addControl("CheckBox", checkboxprops)  
 		actionlistener = ActionListener(xscriptcontext)
@@ -133,6 +134,15 @@ def createDialog(xscriptcontext, enhancedmouseevent):
 		dialogwindow.addWindowListener(windowlistener) # setVisible(True)でも呼び出されるので、その後でリスナーを追加する。		
 		args = doc, controlcontainer, gridselectionlistener, actionlistener, dialogwindow, windowlistener
 		dialogframe.addCloseListener(CloseListener(args))  # CloseListener。ノンモダルダイアログのリスナー削除用。	
+		
+		accessiblecontext = gridcontrol1.getAccessibleContext()  # グリッドコントロールのAccessibleContextを取得。
+		for i in range(accessiblecontext.getAccessibleChildCount()):  # 子要素をのインデックスを走査する。
+			child = accessiblecontext.getAccessibleChild(i)  # 子要素を取得。
+			if child.getAccessibleContext().getAccessibleRole()==AccessibleRole.SCROLL_BAR:  # スクロールバーの時。
+				if child.getOrientation()==ScrollBarOrientation.VERTICAL:  # 縦スクロールバーの時。
+					child.setValue(child.getMaximum())  # 最大値にスクロールさせる。
+					break
+				
 def XWidth(props, m=0):  # 左隣のコントロールからPositionXを取得。mは間隔。
 	return props["PositionX"] + props["Width"] + m  	
 def YHeight(props, m=0):  # 上隣のコントロールからPositionYを取得。mは間隔。
@@ -264,33 +274,31 @@ class ActionListener(unohelper.Base, XActionListener):
 				edit1 = controlcontainer.getControl("Edit1")  # テキストボックスコントロールを取得。
 				txt = edit1.getText()  # テキストボックスコントロールの文字列を取得。
 				if txt:
-					griddata = controlcontainer.getControl("Grid1").getModel().getPropertyValue("GridDataModel")  # GridDataModelを取得。			
-					griddata.addRow("", (txt,))  # 新規行を追加。
+					griddata = controlcontainer.getControl("Grid1").getModel().getPropertyValue("GridDataModel")  # GridDataModelを取得。		
+					griddata.addRow("", (txt,))  # 新規行を追加。重複行はダイアログを閉じる時に整理する。
 					selection.setString(txt)  # 選択セルに代入。
 				sheet = controller.getActiveSheet()
 				celladdress = selection.getCellAddress()
 				nextcell = sheet[celladdress.Row+1, celladdress.Column]  # 下のセルを取得。
 				controller.select(nextcell)  # 下のセルを選択。
-				edit1.setText(nextcell.getString())  # テキストボックスコントロールにセルの内容を取得。
+				nexttxt = nextcell.getString()  # 下のセルの文字列を取得。
+				edit1.setText(nexttxt)  # テキストボックスコントロールにセルの内容を取得。
 				edit1.setFocus()  # テキストボックスコントロールをフォーカスする。
-				
-
-				# カーソルを最後に持ってくる。
-				
-				
-				
+				textlength = len(nexttxt)  # テキストボックスコントロール内の文字列の文字数を取得。
+				edit1selection = Selection(Min=textlength, Max=textlength)  # カーソルの位置を最後にする。指定しないと先頭になる。
+				edit1.setSelection(edit1selection)  # テクストボックスコントロールのカーソルの位置を変更。ピア作成後でないと反映されない。
 	def disposing(self, eventobject):
 		eventobject.Source.removeActionListener(self)
 def saveGridRows(doc, dialogtitle, gridcontrol, maxcount=500):  # グリッドコントロールの行をhistoryシートのragenameに保存する。		
 	griddatamodel = gridcontrol.getModel().getPropertyValue("GridDataModel")  # GridDataModel
 	datarows = []  # 重複を避けて行を取得。
-	for i in range(griddatamodel.RowCount)[::-1]:  # 下から行を取得。
+	for i in range(griddatamodel.RowCount)[::-1]:  # 下から行を取得。一括して取得する方法はない。
 		datarow = griddatamodel.getRowData(i)  # グリッドコントロールの1行を取得。
-		if not datarow in datarows:  # 1番下を残して重複データを削除。
+		if any(datarow) and not datarow in datarows:  # 1番下を残して重複データを削除。空セルだけの行も含めない。
 			datarows.append(datarow)
 	datarows.reverse()  # 使用順に戻す。
 	if len(datarows)>maxcount:  # 上限より行数が多い時。
-		datarows = datarows[:maxcount]
+		datarows = datarows[:maxcount]  # 上限数にする。
 	saveData(doc, "GridDatarows_{}".format(dialogtitle), datarows)
 def saveData(doc, rangename, obj):	# configシートの名前rangenameにobjをJSONにして保存する。
 	sheetname = "config"  # 保存するシート名。
@@ -326,15 +334,132 @@ def getSavedData(doc, rangename):  # configシートのragenameからデータ�
 				except json.JSONDecodeError:
 					import traceback; traceback.print_exc()  # これがないとPyDevのコンソールにトレースバックが表示されない。stderrToServer=Trueが必須。
 	return None  # 保存された行が取得できない時はNoneを返す。
+
+
+
+class MouseListener(unohelper.Base, XMouseListener):  
+	def __init__(self, xscriptcontext): 
+		
+		
+		
+		items = ("~削除", 0, {"setCommand": "delete"}),  # グリッドコントロールにつける右クリックメニュー。
+		gridpopupmenu = menuCreator(ctx, smgr)("PopupMenu", items, {"addMenuListener": menulistener})  # 右クリックでまず呼び出すポップアップメニュー。   	
+		self.args = doc, gridpopupmenu
+	def mousePressed(self, mouseevent):  # グリッドコントロールをクリックした時。コントロールモデルにはNameプロパティはない。
+		doc, gridpopupmenu = self.args
+		gridcontrol = mouseevent.Source  # グリッドコントロールを取得。
+		if mouseevent.Buttons==MouseButton.LEFT and mouseevent.ClickCount==2:  # ダブルクリックの時。
+			selection = doc.getCurrentSelection()  # シート上で選択しているオブジェクトを取得。
+			if selection.supportsService("com.sun.star.sheet.SheetCell"):  # 選択オブジェクトがセルの時。
+				griddata = gridcontrol.getModel().getPropertyValue("GridDataModel")  # GridDataModelを取得。
+				rowdata = griddata.getRowData(gridcontrol.getCurrentRow())  # グリッドコントロールで選択している行のすべての列をタプルで取得。
+				cellcursor = selection.getSpreadsheet().createCursorByRange(selection)  # 選択範囲のセルカーサーを取得。
+				cellcursor.collapseToSize(len(rowdata), 1)  # (列、行)で指定。セルカーサーの範囲をrowdataに合せる。
+# 				menulistener.undo = cellcursor, cellcursor.getDataArray()  # undoのためにセルカーサーとその値を取得する。
+				cellcursor.setDataArray((rowdata,))  # セルカーサーにrowdataを代入。代入できるのは整数(int、ただしboolを除く)か文字列のみ。
+		elif mouseevent.PopupTrigger:  # 右クリックの時。
+			rowindex = gridcontrol.getRowAtPoint(mouseevent.X, mouseevent.Y)  # クリックした位置の行インデックスを取得。該当行がない時は-1が返ってくる。
+			if rowindex>-1:  # クリックした位置に行が存在する時。
+				if not gridcontrol.isRowSelected(rowindex):  # クリックした位置の行が選択状態でない時。
+					gridcontrol.deselectAllRows()  # 行の選択状態をすべて解除する。
+					gridcontrol.selectRow(rowindex)  # 右クリックしたところの行を選択する。		
+				pos = Rectangle(mouseevent.X, mouseevent.Y, 0, 0)  # ポップアップメニューを表示させる起点。
+				gridpopupmenu.execute(gridcontrol.getPeer(), pos, PopupMenuDirection.EXECUTE_DEFAULT)  # ポップアップメニューを表示させる。引数は親ピア、位置、方向						
+	def mouseReleased(self, mouseevent):
+		pass
+	def mouseEntered(self, mouseevent):
+		pass
+	def mouseExited(self, mouseevent):
+		pass
+	def disposing(self, eventobject):
+		eventobject.Source.removeMouseListener(self)
+def menuCreator(ctx, smgr):  #  メニューバーまたはポップアップメニューを作成する関数を返す。
+	def createMenu(menutype, items, attr=None):  # menutypeはMenuBarまたはPopupMenu、itemsは各メニュー項目の項目名、スタイル、適用するメソッドのタプルのタプル、attrは各項目に適用する以外のメソッド。
+		if attr is None:
+			attr = {}
+		menu = smgr.createInstanceWithContext("com.sun.star.awt.{}".format(menutype), ctx)
+		for i, item in enumerate(items, start=1):  # 各メニュー項目について。
+			if item:
+				if len(item) > 2:  # タプルの要素が3以上のときは3番目の要素は適用するメソッドの辞書と考える。
+					item = list(item)
+					attr[i] = item.pop()  # メニュー項目のIDをキーとしてメソッド辞書に付け替える。
+				menu.insertItem(i, *item, i-1)  # ItemId, Text, ItemSytle, ItemPos。ItemIdは1から始まり区切り線(欠番)は含まない。ItemPosは0から始まり区切り線を含む。
+			else:  # 空のタプルの時は区切り線と考える。
+				menu.insertSeparator(i-1)  # ItemPos
+		if attr:  # メソッドの適用。
+			for key, val in attr.items():  # keyはメソッド名あるいはメニュー項目のID。
+				if isinstance(val, dict):  # valが辞書の時はkeyは項目ID。valはcreateMenu()の引数のitemsであり、itemsの３番目の要素にキーをメソッド名とする辞書が入っている。
+					for method, arg in val.items():  # 辞書valのキーはメソッド名、値はメソッドの引数。
+						if method in ("checkItem", "enableItem", "setCommand", "setHelpCommand", "setHelpText", "setTipHelpText"):  # 第1引数にIDを必要するメソッド。
+							getattr(menu, method)(key, arg)
+						else:
+							getattr(menu, method)(arg)
+				else:
+					getattr(menu, key)(val)
+		return menu
+	return createMenu
+class MenuListener(unohelper.Base, XMenuListener):
+	def __init__(self, controlcontainer):  # グリッドコントロールはこの時点でまだdialogに追加されていない。ピアも作成されていない。
+		self.controlcontainer = controlcontainer
+		
+# 		self.rowdata = None
+# 		self.undo = None  # undo用データ。
+# 	def setDialog(self, controlcontainer):  # ピアが作成されてから実行する。
+# 		self.controlcontainer = controlcontainer
+		
+# 		peer = controlcontainer.getPeer()  # ピアを取得。
+# 		toolkit = peer.getToolkit()  # ピアからツールキットを取得。 	
+# 		gridcontrol = controlcontainer.getControl("Grid1")  # グリッドコントロールを取得。	
+		
+# 		self.args = peer, toolkit, gridcontrol  # dialogはCloseListener内で使うので最初に置かないといけない。
+	def itemHighlighted(self, menuevent):
+		pass
+	def itemSelected(self, menuevent):  # PopupMenuの項目がクリックされた時。どこのコントロールのメニューかを知る方法はない。
+		cmd = menuevent.Source.getCommand(menuevent.MenuId)
+		if cmd=="delete":  # 選択行を削除する。  
+		
+			controlcontainer = self.controlcontainer
+		
+# 			peer, toolkit, gridcontrol = self.args
+			
+			
+# 		if cmd in ("delete", ):  # グリッドコントロールのコンテクストメニュー。
+# 			if cmd=="cut":  # 選択行のデータを取得してその行を削除する。
+# 				self.rowdata = [griddata.getRowData(r) for r in selectedrows]  # 選択行のデータを取得。
+# 				[griddata.removeRow(r) for r in selectedrows]  # 選択行を削除。
+# 			elif cmd=="copy":  # 選択行のデータを取得する。  
+# 				self.rowdata = [griddata.getRowData(r) for r in selectedrows]  # 選択行のデータを取得。
+# 			elif cmd=="pasteabove":  # 行を選択行の上に挿入。 
+# 				insertRows(gridcontrol, griddata, selectedrows, 0, self.rowdata)
+# 			elif cmd=="pastebelow":  # 空行を選択行の下に挿入。  
+# 				insertRows(gridcontrol, griddata, selectedrows, 1, self.rowdata)
+			peer = controlcontainer.getPeer()  # ピアを取得。	
+			msg = "選択行を削除しますか?"
+			msgbox = peer.getToolkit().createMessageBox(peer, QUERYBOX, MessageBoxButtons.BUTTONS_YES_NO, "myRs", msg)
+			if msgbox.execute()==MessageBoxResults.YES:		
+				gridcontrol = controlcontainer.getControl("Grid1")  # グリッドコントロールを取得。			
+				griddata = gridcontrol.getModel().getPropertyValue("GridDataModel")  # GridDataModelを取得。			
+				selectedrows = gridcontrol.getSelectedRows()  # 選択行インデックスのタプルを取得。	
+				[griddata.removeRow(r) for r in reversed(selectedrows)]  # 選択行を下から削除。		
+	def itemActivated(self, menuevent):
+		pass
+	def itemDeactivated(self, menuevent):
+		pass   
+	def disposing(self, eventobject):
+		eventobject.Source.removeMenuListener(self)		
+		
+		
+		
 class GridSelectionListener(unohelper.Base, XGridSelectionListener):
 	def selectionChanged(self, gridselectionevent):  # 行を追加した時も発火する。
 		gridcontrol = gridselectionevent.Source
-		selectedrows = gridselectionevent.SelectedRowIndexes  # 行がないグリッドコントロールに行が追加されたときは負の値が入ってくる。
-		if selectedrows:  # 選択行がある時。
-			rowdata = gridcontrol.getModel().getPropertyValue("GridDataModel").getRowData(gridselectionevent.SelectedRowIndexes[0])  # 選択行の最初の行のデータを取得。
+		selectedrowindexes = gridselectionevent.SelectedRowIndexes  # 行がないグリッドコントロールに行が追加されたときは負の値が入ってくる。
+		if selectedrowindexes:  # 選択行がある時。
+			griddatamodel = gridcontrol.getModel().getPropertyValue("GridDataModel")
+			rowdata = griddatamodel.getRowData(selectedrowindexes[0])  # 選択行の最初の行のデータを取得。
 			gridcontrol.getContext().getControl("Edit1").setText(rowdata[0])  # テキストボックスに選択行の初行の文字列を代入。
-			if len(selectedrows)==1:  # 1行しかない時はまた発火できるように選択を外す。
-				gridcontrol.deselectRow(0)
+			if griddatamodel.RowCount==1:  # 1行しかない時はまた発火できるように選択を外す。
+				gridcontrol.deselectRow(0)  # 選択行の選択を外す。選択していない行を指定すると永遠ループになる。
 	def disposing(self, eventobject):
 		eventobject.Source.removeSelectionListener(self)	
 def controlcontainerMaCreator(ctx, smgr, maTopx, containerprops):  # ma単位でコントロールコンテナと、それにコントロールを追加する関数を返す。まずコントロールコンテナモデルのプロパティを取得。UnoControlDialogElementサービスのプロパティは使えない。propsのキーにPosSize、値にPOSSIZEが必要。
