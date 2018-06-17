@@ -6,18 +6,18 @@ import json
 from com.sun.star.accessibility import AccessibleRole  # 定数
 from com.sun.star.awt import XActionListener
 from com.sun.star.awt import XEnhancedMouseClickHandler
-from com.sun.star.awt import XMenuListener, XItemListener
-from com.sun.star.awt import XMouseListener
+# from com.sun.star.awt import XMenuListener, XItemListener
+# from com.sun.star.awt import XMouseListener
 from com.sun.star.awt import MouseButton, PosSize  # 定数
-from com.sun.star.awt import PopupMenuDirection  # 定数
-from com.sun.star.awt import Rectangle  # Struct
-from com.sun.star.awt import ScrollBarOrientation  # 定数
+# from com.sun.star.awt import PopupMenuDirection  # 定数
+# from com.sun.star.awt import Rectangle  # Struct
+# from com.sun.star.awt import ScrollBarOrientation  # 定数
 from com.sun.star.document import XDocumentEventListener
 from com.sun.star.util import XCloseListener
-from com.sun.star.view.SelectionType import MULTI  # enum 
-from com.sun.star.awt.MessageBoxType import QUERYBOX  # enum
-from com.sun.star.awt import MessageBoxButtons  # 定数
-from com.sun.star.awt import MessageBoxResults  # 定数
+# from com.sun.star.view.SelectionType import MULTI  # enum 
+# from com.sun.star.awt.MessageBoxType import QUERYBOX  # enum
+# from com.sun.star.awt import MessageBoxButtons  # 定数
+# from com.sun.star.awt import MessageBoxResults  # 定数
 from com.sun.star.awt.grid import XGridSelectionListener
 from com.sun.star.sheet import CellFlags  # 定数
 from com.sun.star.awt import Point  # Struct
@@ -71,30 +71,34 @@ def createDialog(xscriptcontext, enhancedmouseevent):
 	doc = xscriptcontext.getDocument()  # マクロを起動した時のドキュメントのモデルを取得。   
 	dialogpoint = getDialogPoint(doc, enhancedmouseevent)  # クリックした位置のメニューバーの高さ分下の位置を取得。単位ピクセル。一部しか表示されていないセルのときはNoneが返る。
 	if dialogpoint:
+		
+# 		import pydevd; pydevd.settrace(stdoutToServer=True, stderrToServer=True)
+		dialogtitle = "履歴"  # ダイアログのデータ保存名に使うのでユニークでないといけない。
 		docframe = doc.getCurrentController().getFrame()  # モデル→コントローラ→フレーム、でドキュメントのフレームを取得。
 		containerwindow = docframe.getContainerWindow()  # ドキュメントのウィンドウ(コンテナウィンドウ=ピア)を取得。
-		toolkit = containerwindow.getToolkit()  # ピアからツールキットを取得。  
+		toolkit = containerwindow.getToolkit()  # ピアからツールキットを取得。  		
 		m = 6  # コントロール間の間隔。
 		h = 12
 		gridprops = {"PositionX": m, "PositionY": m, "Width": 104, "Height": 50, "ShowRowHeader": False, "ShowColumnHeader": False, "VScroll": True}  # グリッドコントロールのプロパティ。
 		textboxprops = {"PositionX": m, "PositionY": YHeight(gridprops, 2), "Width": gridprops["Width"], "Height": h, "Text": doc.getCurrentSelection().getString()}  # テクストボックスコントロールのプロパティ。
-		checkboxprops = {"PositionX": m, "PositionY": YHeight(textboxprops, 4), "Width": 42, "Height": h, "Label": "~サイズ保存", "State": 1}  # チェックボックスコントロールのプロパティ。
+		checkboxprops = {"PositionX": m, "PositionY": YHeight(textboxprops, 4), "Width": 42, "Height": h, "Label": "~サイズ保存", "State": 1, "Tabstop": False}  # チェックボックスコントロールのプロパティ。
 		buttonprops = {"PositionY": YHeight(textboxprops, 4), "Width": 30, "Height": h+2, "Label": "Enter"}  # ボタンのプロパティ。PushButtonTypeの値はEnumではエラーになる。VerticalAlignではtextboxと高さが揃わない。
 		buttonprops.update(PositionX=XWidth(gridprops)-buttonprops["Width"])
 		controlcontainerprops = {"PositionX": 0, "PositionY": 0, "Width": XWidth(gridprops, m), "Height": YHeight(buttonprops, m), "BackgroundColor": 0xF0F0F0}  # コントロールコンテナの基本プロパティ。幅は右端のコントロールから取得。高さはコントロール追加後に最後に設定し直す。		
-		sizes = getSavedData(doc, "dialogsize")
-		if sizes:
-			controlcontainerprops.update(Width=sizes[0], Height=sizes[1])
 		maTopx = createConverters(containerwindow)  # ma単位をピクセルに変換する関数を取得。
 		controlcontainer, addControl = controlcontainerMaCreator(ctx, smgr, maTopx, controlcontainerprops)  # コントロールコンテナの作成。		
 		gridselectionlistener = GridSelectionListener()
 		gridcontrol1 = addControl("Grid", gridprops, {"addSelectionListener": gridselectionlistener})  # グリッドコントロールの取得。gridは他のコントロールの設定に使うのでコピーを渡す。
+		
+		
 		gridmodel = gridcontrol1.getModel()  # グリッドコントロールモデルの取得。
 		gridcolumn = gridmodel.getPropertyValue("ColumnModel")  # DefaultGridColumnModel
 		column0 = gridcolumn.createColumn()  # 列の作成。
 		gridcolumn.addColumn(column0)  # 列を追加。
+		
+		
 		griddata = gridmodel.getPropertyValue("GridDataModel")  # GridDataModel
-		datarows = getSavedData(doc, "GridDatarows")  # グリッドコントロールの行をconfigシートのragenameから取得する。	
+		datarows = getSavedData(doc, "GridDatarows_{}".format(dialogtitle))  # グリッドコントロールの行をconfigシートのragenameから取得する。	
 
 		now = datetime.now()  # 現在の日時を取得。
 		t = now.isoformat()
@@ -107,14 +111,19 @@ def createDialog(xscriptcontext, enhancedmouseevent):
 		addControl("CheckBox", checkboxprops)  
 		actionlistener = ActionListener(xscriptcontext)
 		addControl("Button", buttonprops, {"addActionListener": actionlistener, "setActionCommand": "enter"})  
+		dialogstate = getSavedData(doc, "dialogstate_{}".format(dialogtitle))
+		if dialogstate:  # 保存してあるダイアログの状態がある時。
+			if dialogstate["CheckBox1sate"]:  # 保存されたチェックボックスのチェックがある時大きさを復元する。
+				oldsize = controlcontainer.getSize()  # 変更前の大きさを取得。
+				resizeControls(controlcontainer, oldsize.Width, oldsize.Height, dialogstate["Width"], dialogstate["Height"])  # コントロールの大きさと位置を変更。
 		rectangle = controlcontainer.getPosSize()  # コントロールコンテナのRectangle Structを取得。px単位。
 		rectangle.X, rectangle.Y = dialogpoint  # クリックした位置を取得。ウィンドウタイトルを含めない座標。
 		taskcreator = smgr.createInstanceWithContext('com.sun.star.frame.TaskCreator', ctx)
 		args = NamedValue("PosSize", rectangle), NamedValue("FrameName", "controldialog")  # , NamedValue("MakeVisible", True)  # TaskCreatorで作成するフレームのコンテナウィンドウのプロパティ。
 		dialogframe = taskcreator.createInstanceWithArguments(args)  # コンテナウィンドウ付きの新しいフレームの取得。
 		dialogwindow = dialogframe.getContainerWindow()  # ダイアログのコンテナウィンドウを取得。
-		dialogframe.setTitle("履歴")  # フレームのタイトルを設定。
-		docframe.getFrames().append(dialogframe) # 新しく作ったフレームを既存のフレームの階層に追加する。			
+		dialogframe.setTitle(dialogtitle)  # フレームのタイトルを設定。
+		docframe.getFrames().append(dialogframe) # 新しく作ったフレームを既存のフレームの階層に追加する。		
 		controlcontainer.createPeer(toolkit, dialogwindow) # ウィンドウにコントロールを描画。 
 		frameactionlistener = FrameActionListener()  # FrameActionListener。フレームがアクティブでなくなった時に閉じるため。
 		dialogframe.addFrameActionListener(frameactionlistener)  # FrameActionListenerをダイアログフレームに追加。
@@ -176,13 +185,16 @@ class CloseListener(unohelper.Base, XCloseListener):  # ノンモダルダイア
 	def __init__(self, args):
 		self.args = args
 	def queryClosing(self, eventobject, getsownership):
+		dialogframe = eventobject.Source
 		doc, controlcontainer, gridselectionlistener, actionlistener, dialogwindow, windowlistener = self.args
-		
-		controlcontainer
-		
-		
+		size = controlcontainer.getSize()
+		dialogstate = {"CheckBox1sate": controlcontainer.getControl("CheckBox1").getState(),\
+					"Width": size.Width,\
+					"Height": size.Height}  # チェックボックスの状態と大きさを取得。
+		dialogtitle = dialogframe.getTitle()
+		saveData(doc, "dialogstate_{}".format(dialogtitle), dialogstate)
 		gridcontrol1 = controlcontainer.getControl("Grid1")
-		saveGridRows(doc, gridcontrol1)
+		saveGridRows(doc, dialogtitle, gridcontrol1)
 		gridcontrol1.removeSelectionListener(gridselectionlistener)
 		buttoncontrol1 = controlcontainer.getControl("Button1")
 		buttoncontrol1.removeActionListener(actionlistener)
@@ -193,48 +205,15 @@ class CloseListener(unohelper.Base, XCloseListener):  # ノンモダルダイア
 	def disposing(self, eventobject):  
 		eventobject.Source.removeCloseListener(self)
 class WindowListener(unohelper.Base, XWindowListener):
-	def __init__(self, args):
-		self.args = args	
-		self.oldwidth = 0  # 次の変更前の幅として取得。
-		self.oldheight = 0  # 次の変更前の高さとして取得。	
-		
-		
-			
-	def windowResized(self, windowevent):  # 変化分で計算する。コントロールが表示されないほど小さくされると次から表示がおかしくなる。
-		
-		
-		
-		controlcontainer = self.args
-		gridcontrol1 = controlcontainer.getControl("Grid1")
-		editcontrol1 = controlcontainer.getControl("Edit1")
-		checkboxcontrol1 = controlcontainer.getControl("CheckBox1")
-		buttoncontrol1 = controlcontainer.getControl("Button1")
-		checkboxrect = checkboxcontrol1.getPosSize()
-		m = checkboxrect.X
-		minwidth = checkboxrect.Width + buttoncontrol1.getSize().Width + m*2  # 幅下限を取得。
-		minheight = checkboxrect.Height*3 + m*4  # 高さ下限を取得。
-		newwidth = windowevent.Width if windowevent.Width>minwidth else minwidth  # 変更後のコントロールコンテナの幅を取得。サイズ下限より小さい時は下限値とする。
-		newheight = windowevent.Height if windowevent.Height>minheight else minheight  # 変更後のコントロールコンテナの高さを取得。サイズ下限より小さい時は下限値とする。
-		diff_width = newwidth - self.oldwidth  # 幅変化分
-		diff_height = newheight - self.oldheight  # 高さ変化分		
-		applyDiff = self._createApplyDiff(diff_width, diff_height)
-		controlcontainer.setPosSize(0, 0, newwidth, newheight, PosSize.SIZE)  # Flagsで変更する値のみ指定。変更しない値は0(でもなんでもよいはず)。
-		applyDiff(gridcontrol1, PosSize.SIZE)
-		applyDiff(editcontrol1, PosSize.Y+PosSize.WIDTH)
-		applyDiff(checkboxcontrol1, PosSize.Y)
-		applyDiff(buttoncontrol1, PosSize.POS)
-		
-		
-		
+	def __init__(self, controlcontainer):
+		size = controlcontainer.getSize()
+		self.oldwidth = size.Width  # 次の変更前の幅として取得。
+		self.oldheight = size.Height  # 次の変更前の高さとして取得。		
+		self.controlcontainer = controlcontainer
+	def windowResized(self, windowevent):
+		newwidth, newheight = resizeControls(self.controlcontainer, self.oldwidth, self.oldheight, windowevent.Width, windowevent.Height)  # 変化分で計算する。コントロールが表示されないほど小さくされると次から表示がおかしくなる。
 		self.oldwidth = newwidth  # 次の変更前の幅として取得。
 		self.oldheight = newheight  # 次の変更前の高さとして取得。
-		
-		
-	def _createApplyDiff(self, diff_width, diff_height):		
-		def applyDiff(control, possize):  # 第2引数でウィンドウサイズの変化分のみ適用するPosSizeを指定。
-			rectangle = control.getPosSize()  # 変更前のコントロールの位置大きさを取得。
-			control.setPosSize(rectangle.X+diff_width, rectangle.Y+diff_height, rectangle.Width+diff_width, rectangle.Height+diff_height, possize)
-		return applyDiff
 	def windowMoved(self, windowevent):
 		pass
 	def windowShown(self, eventobject):
@@ -242,7 +221,34 @@ class WindowListener(unohelper.Base, XWindowListener):
 	def windowHidden(self, eventobject):
 		pass
 	def disposing(self, eventobject):
-		eventobject.Source.removeWindowListener(self)
+		eventobject.Source.removeWindowListener(self)	
+def resizeControls(controlcontainer, oldwidth, oldheight, newwidth, newheight):	 # ウィンドウの大きさの変更に合わせてコントロールの位置と大きさを変更。ウィンドウの大きさはここで変更するとコントロールが正しく移動できない。
+	gridcontrol1 = controlcontainer.getControl("Grid1")
+	editcontrol1 = controlcontainer.getControl("Edit1")
+	checkboxcontrol1 = controlcontainer.getControl("CheckBox1")
+	buttoncontrol1 = controlcontainer.getControl("Button1")
+	checkbox1rect = checkboxcontrol1.getPosSize()
+	m = checkbox1rect.X
+	minwidth = checkbox1rect.Width + buttoncontrol1.getSize().Width + m*2  # 幅下限を取得。
+	minheight = checkbox1rect.Height*3 + m*4  # 高さ下限を取得。
+	if newwidth<minwidth:  # 変更後のコントロールコンテナの幅を取得。サイズ下限より小さい時は下限値とする。
+		newwidth = minwidth
+	if newheight<minheight:  # 変更後のコントロールコンテナの高さを取得。サイズ下限より小さい時は下限値とする。
+		newheight = minheight
+	diff_width = newwidth - oldwidth  # 幅変化分
+	diff_height = newheight - oldheight  # 高さ変化分		
+	applyDiff = createApplyDiff(diff_width, diff_height)  # コントロールの位置と大きさを変更する関数を取得。
+	controlcontainer.setPosSize(0, 0, newwidth, newheight, PosSize.SIZE)  # コントロールコンテナの大きさを変更する。
+	applyDiff(gridcontrol1, PosSize.SIZE)
+	applyDiff(editcontrol1, PosSize.Y+PosSize.WIDTH)
+	applyDiff(checkboxcontrol1, PosSize.Y)
+	applyDiff(buttoncontrol1, PosSize.POS)		
+	return newwidth, newheight  # 下限制限後のウィンドウサイズを返す。
+def createApplyDiff(diff_width, diff_height):		
+	def applyDiff(control, possize):  # 第2引数でウィンドウサイズの変化分のみ適用するPosSizeを指定。
+		rectangle = control.getPosSize()  # 変更前のコントロールの位置大きさを取得。
+		control.setPosSize(rectangle.X+diff_width, rectangle.Y+diff_height, rectangle.Width+diff_width, rectangle.Height+diff_height, possize)  # Flagsで変更する値のみ指定。変更しない値は0(でもなんでもよいはず)。
+	return applyDiff		
 class ActionListener(unohelper.Base, XActionListener):
 	def __init__(self, xscriptcontext):
 		self.xscriptcontext = xscriptcontext
@@ -250,57 +256,75 @@ class ActionListener(unohelper.Base, XActionListener):
 		xscriptcontext = self.xscriptcontext
 		cmd = actionevent.ActionCommand
 		if cmd=="enter":
-			edit1 = actionevent.Source.getContext().getControl("Edit1")
 			doc = xscriptcontext.getDocument()  
-			selection = doc.getCurrentSelection()
+			controller = doc.getCurrentController()  # 現在のコントローラを取得。			
+			selection = controller.getSelection()
 			if selection.supportsService("com.sun.star.sheet.SheetCell"):  # 選択オブジェクトがセルの時。
-				selection.setString(edit1.getText())
-				#  下のセルに移動。
-				#  グリッドにデーターを追加。
+				controlcontainer = actionevent.Source.getContext()
+				edit1 = controlcontainer.getControl("Edit1")  # テキストボックスコントロールを取得。
+				txt = edit1.getText()  # テキストボックスコントロールの文字列を取得。
+				if txt:
+					griddata = controlcontainer.getControl("Grid1").getModel().getPropertyValue("GridDataModel")  # GridDataModelを取得。			
+					griddata.addRow("", (txt,))  # 新規行を追加。
+					selection.setString(txt)  # 選択セルに代入。
+				sheet = controller.getActiveSheet()
+				celladdress = selection.getCellAddress()
+				nextcell = sheet[celladdress.Row+1, celladdress.Column]  # 下のセルを取得。
+				controller.select(nextcell)  # 下のセルを選択。
+				edit1.setText(nextcell.getString())  # テキストボックスコントロールにセルの内容を取得。
+				edit1.setFocus()  # テキストボックスコントロールをフォーカスする。
+				
+
+				# カーソルを最後に持ってくる。
 				
 				
 				
 	def disposing(self, eventobject):
 		eventobject.Source.removeActionListener(self)
-def saveGridRows(doc, gridcontrol):  # グリッドコントロールの行をhistoryシートのragenameに保存する。		
+def saveGridRows(doc, dialogtitle, gridcontrol, maxcount=500):  # グリッドコントロールの行をhistoryシートのragenameに保存する。		
 	griddatamodel = gridcontrol.getModel().getPropertyValue("GridDataModel")  # GridDataModel
 	datarows = []  # 重複を避けて行を取得。
 	for i in range(griddatamodel.RowCount)[::-1]:  # 下から行を取得。
 		datarow = griddatamodel.getRowData(i)  # グリッドコントロールの1行を取得。
-		if not datarow in datarows:
+		if not datarow in datarows:  # 1番下を残して重複データを削除。
 			datarows.append(datarow)
 	datarows.reverse()  # 使用順に戻す。
-	
-
-	
-	# 1番下を残して重複データを削除。
-	# 上限数設定
-	
-	saveData(doc, "GridDatarows", datarows)
+	if len(datarows)>maxcount:  # 上限より行数が多い時。
+		datarows = datarows[:maxcount]
+	saveData(doc, "GridDatarows_{}".format(dialogtitle), datarows)
 def saveData(doc, rangename, obj):	# configシートの名前rangenameにobjをJSONにして保存する。
+	sheetname = "config"  # 保存するシート名。
 	namedranges = doc.getPropertyValue("NamedRanges")  # ドキュメントのNamedRangesを取得。
-	if not rangename in namedranges:  # 名前がない時。名前は重複しているとエラーになる。
+	if rangename in namedranges:  # 名前がある時。
+		referredcells = namedranges[rangename].getReferredCells()  # 名前の参照セル範囲を取得。
+		if referredcells:  # 参照セル範囲がある時。
+			referredcells.setString(json.dumps(obj,  ensure_ascii=False))  # rangenameという名前のセルに文字列でPythonオブジェクトを出力する。
+			return
+		else:  # 名前があるが参照セル範囲がない時。
+			namedranges.removeByName(rangename)  # 名前は重複しているとエラーになるので削除する。	
+	if not rangename in namedranges:  # 名前がない時。
 		sheets = doc.getSheets()  # シートコレクションを取得。
-		sheetname = "config"  # 履歴シート名。
-		if not sheetname in sheets:  # 履歴シートがない時。
+		if not sheetname in sheets:  # 保存シートがない時。
 			sheets.insertNewByName(sheetname, len(sheets))   # 履歴シートを挿入。同名のシートがあるとRuntimeExceptionがでる。
-		sheet = sheets[sheetname]  # 履歴シートを取得。
+		sheet = sheets[sheetname]  # 保存シートを取得。
 		sheet.setPropertyValue("IsVisible", False)  # 非表示シートにする。
 		emptyranges = sheet[:, :2].queryEmptyCells()  # 2列目までの最初の空セル範囲コレクションを取得。
 		if len(emptyranges):  # セル範囲コレクションが取得出来た時。
-			emptyrange = emptyranges[0]  # 最初のセル範囲を取得。
+			emptyrange = emptyranges[0]  # 最初の空セル範囲を取得。
 			emptyrange[0, 0].setString(rangename)  # 1列目に名前を表示する。
 			namedranges.addNewByName(rangename, emptyrange[0, 1].getPropertyValue("AbsoluteName"), emptyrange[0, 1].getCellAddress(), 0)  # 2列目のセルに名前を付ける。名前、式(相対アドレス)、原点となるセル、NamedRangeFlag
-	namedranges[rangename].getReferredCells().setString(json.dumps(obj,  ensure_ascii=False))  # rangenameという名前のセルに文字列でリストを出力する。
+			namedranges[rangename].getReferredCells().setString(json.dumps(obj,  ensure_ascii=False))  # rangenameという名前のセルに文字列でリストを出力する。
 def getSavedData(doc, rangename):  # configシートのragenameからデータを取得する。	
 	namedranges = doc.getPropertyValue("NamedRanges")  # ドキュメントのNamedRangesを取得。	
 	if rangename in namedranges:  # 名前がある時。
-		txt = namedranges[rangename].getReferredCells().getString()  # 名前が参照しているセルから文字列を取得。
-		if txt:
-			try:
-				return json.loads(txt)
-			except json.JSONDecodeError:
-				pass
+		referredcells = namedranges[rangename].getReferredCells()  # 名前が参照しているセル範囲を取得。参照アドレスがエラーのときはNoneが返る。
+		if referredcells:
+			txt = referredcells.getString()  # 名前が参照しているセルから文字列を取得。
+			if txt:
+				try:
+					return json.loads(txt)  # pyunoオブジェクトは変換できない。
+				except json.JSONDecodeError:
+					import traceback; traceback.print_exc()  # これがないとPyDevのコンソールにトレースバックが表示されない。stderrToServer=Trueが必須。
 	return None  # 保存された行が取得できない時はNoneを返す。
 class GridSelectionListener(unohelper.Base, XGridSelectionListener):
 	def selectionChanged(self, gridselectionevent):  # 行を追加した時も発火する。
