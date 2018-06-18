@@ -46,6 +46,9 @@ class DocumentEventListener(unohelper.Base, XDocumentEventListener):
 			source.removeEnhancedMouseClickHandler(enhancedmouseclickhandler)
 			source.removeDocumentEventListener(self)
 	def disposing(self, eventobject):
+		
+# 		import pydevd; pydevd.settrace(stdoutToServer=True, stderrToServer=True)
+		
 		eventobject.Source.removeDocumentEventListener(self)
 class EnhancedMouseClickHandler(unohelper.Base, XEnhancedMouseClickHandler):
 	def __init__(self, xscriptcontext, subj):
@@ -67,6 +70,9 @@ class EnhancedMouseClickHandler(unohelper.Base, XEnhancedMouseClickHandler):
 	def mouseReleased(self, enhancedmouseevent):
 		return True  # シングルクリックでFalseを返すとセル選択範囲の決定の状態になってどうしようもなくなる。
 	def disposing(self, eventobject):  # ドキュメントを閉じる時でも呼ばれない。
+		
+		import pydevd; pydevd.settrace(stdoutToServer=True, stderrToServer=True)
+		
 		self.subj.removeEnhancedMouseClickHandler(self)	
 def createDialog(xscriptcontext, enhancedmouseevent, dialogtitle):  # dialogtitleはダイアログのデータ保存名に使うのでユニークでないといけない。	
 	ctx = xscriptcontext.getComponentContext()  # コンポーネントコンテクストの取得。
@@ -88,8 +94,8 @@ def createDialog(xscriptcontext, enhancedmouseevent, dialogtitle):  # dialogtitl
 		maTopx = createConverters(containerwindow)  # ma単位をピクセルに変換する関数を取得。
 		controlcontainer, addControl = controlcontainerMaCreator(ctx, smgr, maTopx, controlcontainerprops)  # コントロールコンテナの作成。		
 		gridselectionlistener = GridSelectionListener()
-		args = ctx, smgr, doc
-		mouselistener = MouseListener(args)
+# 		args = ctx, smgr, doc
+		mouselistener = MouseListener(xscriptcontext)
 		
 		gridcontrol1 = addControl("Grid", gridprops, {"addMouseListener": mouselistener, "addSelectionListener": gridselectionlistener})  # グリッドコントロールの取得。gridは他のコントロールの設定に使うのでコピーを渡す。
 		gridmodel = gridcontrol1.getModel()  # グリッドコントロールモデルの取得。
@@ -131,17 +137,15 @@ def createDialog(xscriptcontext, enhancedmouseevent, dialogtitle):  # dialogtitl
 		dialogwindow.setVisible(True) # ウィンドウの表示	
 		windowlistener = WindowListener(controlcontainer)
 		dialogwindow.addWindowListener(windowlistener) # setVisible(True)でも呼び出されるので、その後でリスナーを追加する。		
-		args = doc, controlcontainer, gridselectionlistener, actionlistener, dialogwindow, windowlistener
+		args = doc, controlcontainer, gridselectionlistener, actionlistener, dialogwindow, windowlistener, mouselistener
 		dialogframe.addCloseListener(CloseListener(args))  # CloseListener。ノンモダルダイアログのリスナー削除用。	
-		
 		accessiblecontext = gridcontrol1.getAccessibleContext()  # グリッドコントロールのAccessibleContextを取得。
 		for i in range(accessiblecontext.getAccessibleChildCount()):  # 子要素をのインデックスを走査する。
 			child = accessiblecontext.getAccessibleChild(i)  # 子要素を取得。
 			if child.getAccessibleContext().getAccessibleRole()==AccessibleRole.SCROLL_BAR:  # スクロールバーの時。
 				if child.getOrientation()==ScrollBarOrientation.VERTICAL:  # 縦スクロールバーの時。
 					child.setValue(child.getMaximum())  # 最大値にスクロールさせる。
-					break
-				
+					break	
 def XWidth(props, m=0):  # 左隣のコントロールからPositionXを取得。mは間隔。
 	return props["PositionX"] + props["Width"] + m  	
 def YHeight(props, m=0):  # 上隣のコントロールからPositionYを取得。mは間隔。
@@ -189,13 +193,16 @@ class FrameActionListener(unohelper.Base, XFrameActionListener):
 			frameactionevent.Frame.removeFrameActionListener(self)  # フレームにつけたリスナーを除去。
 			frameactionevent.Frame.close(True)
 	def disposing(self, eventobject):
+		
+# 		import pydevd; pydevd.settrace(stdoutToServer=True, stderrToServer=True)
+		
 		eventobject.Source.removeFrameActionListener(self)
 class CloseListener(unohelper.Base, XCloseListener):  # ノンモダルダイアログのリスナー削除用。
 	def __init__(self, args):
 		self.args = args
 	def queryClosing(self, eventobject, getsownership):
 		dialogframe = eventobject.Source
-		doc, controlcontainer, gridselectionlistener, actionlistener, dialogwindow, windowlistener = self.args
+		doc, controlcontainer, gridselectionlistener, actionlistener, dialogwindow, windowlistener, mouselistener = self.args
 		size = controlcontainer.getSize()
 		dialogstate = {"CheckBox1sate": controlcontainer.getControl("CheckBox1").getState(),\
 					"Width": size.Width,\
@@ -205,6 +212,7 @@ class CloseListener(unohelper.Base, XCloseListener):  # ノンモダルダイア
 		gridcontrol1 = controlcontainer.getControl("Grid1")
 		saveGridRows(doc, dialogtitle, gridcontrol1)
 		gridcontrol1.removeSelectionListener(gridselectionlistener)
+		gridcontrol1.removeMouseListener(mouselistener)
 		buttoncontrol1 = controlcontainer.getControl("Button1")
 		buttoncontrol1.removeActionListener(actionlistener)
 		dialogwindow.removeWindowListener(windowlistener)
@@ -212,6 +220,9 @@ class CloseListener(unohelper.Base, XCloseListener):  # ノンモダルダイア
 	def notifyClosing(self, eventobject):
 		pass
 	def disposing(self, eventobject):  
+		
+# 		import pydevd; pydevd.settrace(stdoutToServer=True, stderrToServer=True)
+		
 		eventobject.Source.removeCloseListener(self)
 class WindowListener(unohelper.Base, XWindowListener):
 	def __init__(self, controlcontainer):
@@ -230,6 +241,9 @@ class WindowListener(unohelper.Base, XWindowListener):
 	def windowHidden(self, eventobject):
 		pass
 	def disposing(self, eventobject):
+		
+# 		import pydevd; pydevd.settrace(stdoutToServer=True, stderrToServer=True)
+		
 		eventobject.Source.removeWindowListener(self)	
 def resizeControls(controlcontainer, oldwidth, oldheight, newwidth, newheight):	 # ウィンドウの大きさの変更に合わせてコントロールの位置と大きさを変更。ウィンドウの大きさはここで変更するとコントロールが正しく移動できない。
 	gridcontrol1 = controlcontainer.getControl("Grid1")
@@ -292,6 +306,9 @@ class ActionListener(unohelper.Base, XActionListener):
 				edit1selection = Selection(Min=textlength, Max=textlength)  # カーソルの位置を最後にする。指定しないと先頭になる。
 				edit1.setSelection(edit1selection)  # テクストボックスコントロールのカーソルの位置を変更。ピア作成後でないと反映されない。
 	def disposing(self, eventobject):
+		
+# 		import pydevd; pydevd.settrace(stdoutToServer=True, stderrToServer=True)
+		
 		eventobject.Source.removeActionListener(self)
 def saveGridRows(doc, dialogtitle, gridcontrol, maxcount=500):  # グリッドコントロールの行をhistoryシートのragenameに保存する。		
 	griddatamodel = gridcontrol.getModel().getPropertyValue("GridDataModel")  # GridDataModel
@@ -342,15 +359,26 @@ def getSavedData(doc, rangename):  # configシートのragenameからデータ�
 
 
 class MouseListener(unohelper.Base, XMouseListener):  
-	def __init__(self, *args): 
-		ctx, smgr, doc = args
-		menulistener = MenuListener(controlcontainer)
+	def __init__(self, xscriptcontext):
+		self.xscriptcontext = xscriptcontext
 		
 		
-		items = ("~削除", 0, {"setCommand": "delete"}),  # グリッドコントロールにつける右クリックメニュー。
-		gridpopupmenu = menuCreator(ctx, smgr)("PopupMenu", items, {"addMenuListener": menulistener})  # 右クリックでまず呼び出すポップアップメニュー。   	
-		self.args = doc, gridpopupmenu
+# 		ctx, smgr, doc = args
+# 		
+# 		menulistener = MenuListener(controlcontainer)
+# 		
+# 		
+# 		items = ("~削除", 0, {"setCommand": "delete"}),  # グリッドコントロールにつける右クリックメニュー。
+# 		gridpopupmenu = menuCreator(ctx, smgr)("PopupMenu", items, {"addMenuListener": menulistener})  # 右クリックでまず呼び出すポップアップメニュー。   	
+# 		self.args = doc, gridpopupmenu
 	def mousePressed(self, mouseevent):  # グリッドコントロールをクリックした時。コントロールモデルにはNameプロパティはない。
+		xscriptcontext = self.xscriptcontext
+		
+		
+		
+		
+  		
+		
 		doc, gridpopupmenu = self.args
 		gridcontrol = mouseevent.Source  # グリッドコントロールを取得。
 		if mouseevent.Buttons==MouseButton.LEFT and mouseevent.ClickCount==2:  # ダブルクリックの時。
@@ -363,6 +391,11 @@ class MouseListener(unohelper.Base, XMouseListener):
 # 				menulistener.undo = cellcursor, cellcursor.getDataArray()  # undoのためにセルカーサーとその値を取得する。
 				cellcursor.setDataArray((rowdata,))  # セルカーサーにrowdataを代入。代入できるのは整数(int、ただしboolを除く)か文字列のみ。
 		elif mouseevent.PopupTrigger:  # 右クリックの時。
+			
+			
+			items = ("~削除", 0, {"setCommand": "delete"}),  # グリッドコントロールにつける右クリックメニュー。
+			gridpopupmenu = menuCreator(ctx, smgr)("PopupMenu", items, {"addMenuListener": menulistener})  # 右クリックでまず呼び出すポップアップメニュー。 			
+			
 			rowindex = gridcontrol.getRowAtPoint(mouseevent.X, mouseevent.Y)  # クリックした位置の行インデックスを取得。該当行がない時は-1が返ってくる。
 			if rowindex>-1:  # クリックした位置に行が存在する時。
 				if not gridcontrol.isRowSelected(rowindex):  # クリックした位置の行が選択状態でない時。
@@ -377,6 +410,9 @@ class MouseListener(unohelper.Base, XMouseListener):
 	def mouseExited(self, mouseevent):
 		pass
 	def disposing(self, eventobject):
+		
+# 		import pydevd; pydevd.settrace(stdoutToServer=True, stderrToServer=True)
+		
 		eventobject.Source.removeMouseListener(self)
 def menuCreator(ctx, smgr):  #  メニューバーまたはポップアップメニューを作成する関数を返す。
 	def createMenu(menutype, items, attr=None):  # menutypeはMenuBarまたはPopupMenu、itemsは各メニュー項目の項目名、スタイル、適用するメソッドのタプルのタプル、attrは各項目に適用する以外のメソッド。
@@ -451,6 +487,9 @@ class MenuListener(unohelper.Base, XMenuListener):
 	def itemDeactivated(self, menuevent):
 		pass   
 	def disposing(self, eventobject):
+		
+# 		import pydevd; pydevd.settrace(stdoutToServer=True, stderrToServer=True)
+		
 		eventobject.Source.removeMenuListener(self)		
 		
 		
@@ -466,6 +505,9 @@ class GridSelectionListener(unohelper.Base, XGridSelectionListener):
 			if griddatamodel.RowCount==1:  # 1行しかない時はまた発火できるように選択を外す。
 				gridcontrol.deselectRow(0)  # 選択行の選択を外す。選択していない行を指定すると永遠ループになる。
 	def disposing(self, eventobject):
+		
+# 		import pydevd; pydevd.settrace(stdoutToServer=True, stderrToServer=True)
+		
 		eventobject.Source.removeSelectionListener(self)	
 def controlcontainerMaCreator(ctx, smgr, maTopx, containerprops):  # ma単位でコントロールコンテナと、それにコントロールを追加する関数を返す。まずコントロールコンテナモデルのプロパティを取得。UnoControlDialogElementサービスのプロパティは使えない。propsのキーにPosSize、値にPOSSIZEが必要。
 	container = smgr.createInstanceWithContext("com.sun.star.awt.UnoControlContainer", ctx)  # コントロールコンテナの生成。
