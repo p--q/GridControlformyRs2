@@ -27,6 +27,8 @@ from com.sun.star.frame.FrameAction import FRAME_UI_DEACTIVATING  # enum
 from com.sun.star.beans import NamedValue  # Struct
 from com.sun.star.awt import XWindowListener
 from com.sun.star.awt import Selection  # Struct
+from com.sun.star.i18n.TransliterationModulesNew import FULLWIDTH_HALFWIDTH
+from com.sun.star.lang import Locale  # Struct
 def macro(documentevent=None):  # 引数は文書のイベント駆動用。import pydevd; pydevd.settrace(stdoutToServer=True, stderrToServer=True)
 	ctx = XSCRIPTCONTEXT.getComponentContext()  # コンポーネントコンテクストの取得。
 	doc = XSCRIPTCONTEXT.getDocument()  # マクロを起動した時のドキュメントのモデルを取得。   
@@ -57,7 +59,7 @@ class EnhancedMouseClickHandler(unohelper.Base, XEnhancedMouseClickHandler):
 				if enhancedmouseevent.ClickCount==2:  # ダブルクリックの時
 					try:
 # 						txt =selection.getString()
-						createDialog(xscriptcontext, enhancedmouseevent)		
+						createDialog(xscriptcontext, enhancedmouseevent, "履歴")		
 						return False  # セル編集モードにしない。
 					except:
 						import traceback; traceback.print_exc()  # これがないとPyDevのコンソールにトレースバックが表示されない。stderrToServer=Trueが必須。
@@ -66,15 +68,12 @@ class EnhancedMouseClickHandler(unohelper.Base, XEnhancedMouseClickHandler):
 		return True  # シングルクリックでFalseを返すとセル選択範囲の決定の状態になってどうしようもなくなる。
 	def disposing(self, eventobject):  # ドキュメントを閉じる時でも呼ばれない。
 		self.subj.removeEnhancedMouseClickHandler(self)	
-def createDialog(xscriptcontext, enhancedmouseevent):	
+def createDialog(xscriptcontext, enhancedmouseevent, dialogtitle):  # dialogtitleはダイアログのデータ保存名に使うのでユニークでないといけない。	
 	ctx = xscriptcontext.getComponentContext()  # コンポーネントコンテクストの取得。
 	smgr = ctx.getServiceManager()  # サービスマネージャーの取得。	
 	doc = xscriptcontext.getDocument()  # マクロを起動した時のドキュメントのモデルを取得。   
 	dialogpoint = getDialogPoint(doc, enhancedmouseevent)  # クリックした位置のメニューバーの高さ分下の位置を取得。単位ピクセル。一部しか表示されていないセルのときはNoneが返る。
 	if dialogpoint:
-		
-# 		import pydevd; pydevd.settrace(stdoutToServer=True, stderrToServer=True)
-		dialogtitle = "履歴"  # ダイアログのデータ保存名に使うのでユニークでないといけない。
 		docframe = doc.getCurrentController().getFrame()  # モデル→コントローラ→フレーム、でドキュメントのフレームを取得。
 		containerwindow = docframe.getContainerWindow()  # ドキュメントのウィンドウ(コンテナウィンドウ=ピア)を取得。
 		toolkit = containerwindow.getToolkit()  # ピアからツールキットを取得。  		
@@ -89,8 +88,8 @@ def createDialog(xscriptcontext, enhancedmouseevent):
 		maTopx = createConverters(containerwindow)  # ma単位をピクセルに変換する関数を取得。
 		controlcontainer, addControl = controlcontainerMaCreator(ctx, smgr, maTopx, controlcontainerprops)  # コントロールコンテナの作成。		
 		gridselectionlistener = GridSelectionListener()
-		
-		mouselistener = MouseListener(xscriptcontext)
+		args = ctx, smgr, doc
+		mouselistener = MouseListener(args)
 		
 		gridcontrol1 = addControl("Grid", gridprops, {"addMouseListener": mouselistener, "addSelectionListener": gridselectionlistener})  # グリッドコントロールの取得。gridは他のコントロールの設定に使うのでコピーを渡す。
 		gridmodel = gridcontrol1.getModel()  # グリッドコントロールモデルの取得。
@@ -273,7 +272,12 @@ class ActionListener(unohelper.Base, XActionListener):
 				controlcontainer = actionevent.Source.getContext()
 				edit1 = controlcontainer.getControl("Edit1")  # テキストボックスコントロールを取得。
 				txt = edit1.getText()  # テキストボックスコントロールの文字列を取得。
-				if txt:
+				if txt:  # テキストボックスコントロールに文字列がある時。
+					ctx = xscriptcontext.getComponentContext()  # コンポーネントコンテクストの取得。
+					smgr = ctx.getServiceManager()  # サービスマネージャーの取得。					
+					transliteration = smgr.createInstanceWithContext("com.sun.star.i18n.Transliteration", ctx)  # Transliteration。		
+					transliteration.loadModuleNew((FULLWIDTH_HALFWIDTH,), Locale(Language = "ja", Country = "JP"))	
+					txt = transliteration.transliterate(txt, 0, len(txt), [])[0]  # 半角に変換
 					griddata = controlcontainer.getControl("Grid1").getModel().getPropertyValue("GridDataModel")  # GridDataModelを取得。		
 					griddata.addRow("", (txt,))  # 新規行を追加。重複行はダイアログを閉じる時に整理する。
 					selection.setString(txt)  # 選択セルに代入。
@@ -338,8 +342,9 @@ def getSavedData(doc, rangename):  # configシートのragenameからデータ�
 
 
 class MouseListener(unohelper.Base, XMouseListener):  
-	def __init__(self, xscriptcontext): 
-		
+	def __init__(self, *args): 
+		ctx, smgr, doc = args
+		menulistener = MenuListener(controlcontainer)
 		
 		
 		items = ("~削除", 0, {"setCommand": "delete"}),  # グリッドコントロールにつける右クリックメニュー。
