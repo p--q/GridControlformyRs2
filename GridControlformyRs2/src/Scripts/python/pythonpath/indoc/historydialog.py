@@ -1,58 +1,22 @@
 #!/opt/libreoffice5.4/program/python
 # -*- coding: utf-8 -*-
 import unohelper, json  # import pydevd; pydevd.settrace(stdoutToServer=True, stderrToServer=True)
+from indoc import commons
 from com.sun.star.accessibility import AccessibleRole  # 定数
-from com.sun.star.awt import XActionListener, XEnhancedMouseClickHandler, XItemListener, XMenuListener, XMouseListener, XWindowListener
+from com.sun.star.awt import XActionListener, XMenuListener, XMouseListener, XWindowListener
 from com.sun.star.awt import MessageBoxButtons, MessageBoxResults, MouseButton, PopupMenuDirection, PosSize, ScrollBarOrientation  # 定数
 from com.sun.star.awt import Point, Rectangle, Selection  # Struct
 from com.sun.star.awt.MessageBoxType import QUERYBOX  # enum
 from com.sun.star.awt.grid import XGridSelectionListener
 from com.sun.star.beans import NamedValue  # Struct
-from com.sun.star.document import XDocumentEventListener
 from com.sun.star.frame import XFrameActionListener
 from com.sun.star.frame.FrameAction import FRAME_UI_DEACTIVATING  # enum
-from com.sun.star.i18n.TransliterationModulesNew import FULLWIDTH_HALFWIDTH
+from com.sun.star.i18n.TransliterationModulesNew import FULLWIDTH_HALFWIDTH  # enum
 from com.sun.star.util import XCloseListener
 from com.sun.star.util import MeasureUnit  # 定数
 from com.sun.star.view.SelectionType import MULTI  # enum 
-from com.sun.star.sheet import CellFlags  # 定数
 from com.sun.star.lang import Locale  # Struct
-def macro(documentevent=None):  # 引数は文書のイベント駆動用。import pydevd; pydevd.settrace(stdoutToServer=True, stderrToServer=True)
-	ctx = XSCRIPTCONTEXT.getComponentContext()  # コンポーネントコンテクストの取得。
-	doc = XSCRIPTCONTEXT.getDocument()  # マクロを起動した時のドキュメントのモデルを取得。   
-	controller = doc.getCurrentController()  # コントローラの取得。
-	enhancedmouseclickhandler = EnhancedMouseClickHandler(XSCRIPTCONTEXT)
-	controller.addEnhancedMouseClickHandler(enhancedmouseclickhandler)  # EnhancedMouseClickHandler	
-	doc.addDocumentEventListener(DocumentEventListener(enhancedmouseclickhandler))  # DocumentEventListener。ドキュメントのリスナーの削除のため。	
-class DocumentEventListener(unohelper.Base, XDocumentEventListener):
-	def __init__(self, enhancedmouseclickhandler):
-		self.enhancedmouseclickhandler = enhancedmouseclickhandler
-	def documentEventOccured(self, documentevent):  # ドキュメントのリスナーを削除する。
-		if documentevent.EventName=="OnUnload":  
-			source = documentevent.Source
-			source.removeEnhancedMouseClickHandler(self.enhancedmouseclickhandler)
-			source.removeDocumentEventListener(self)
-	def disposing(self, eventobject):
-		pass
-class EnhancedMouseClickHandler(unohelper.Base, XEnhancedMouseClickHandler):
-	def __init__(self, xscriptcontext):
-		self.xscriptcontext = xscriptcontext
-	def mousePressed(self, enhancedmouseevent):  # try文を使わないと1回のエラーで以後動かなくなる。
-		selection = enhancedmouseevent.Target  # ターゲットのセルを取得。
-		if enhancedmouseevent.Buttons==MouseButton.LEFT:  # 左ボタンのとき
-			if selection.supportsService("com.sun.star.sheet.SheetCell"):  # ターゲットがセルの時。
-				if enhancedmouseevent.ClickCount==2:  # ダブルクリックの時
-					try:
-						createHistoryDialog(self.xscriptcontext, enhancedmouseevent, "履歴")		
-						return False  # セル編集モードにしない。
-					except:
-						import traceback; traceback.print_exc()  # これがないとPyDevのコンソールにトレースバックが表示されない。stderrToServer=Trueが必須。
-		return True  # セル編集モードにする。
-	def mouseReleased(self, enhancedmouseevent):
-		return True  # シングルクリックでFalseを返すとセル選択範囲の決定の状態になってどうしようもなくなる。
-	def disposing(self, eventobject):  # ドキュメントを閉じる時でも呼ばれない。
-		pass
-def createHistoryDialog(xscriptcontext, enhancedmouseevent, dialogtitle, defaultrows=None):  # dialogtitleはダイアログのデータ保存名に使うのでユニークでないといけない。	
+def createHistoryDialog(xscriptcontext, enhancedmouseevent, dialogtitle, defaultrows=None):  # dialogtitleはダイアログのデータ保存名に使うのでユニークでないといけない。	defaultrowsはグリッドコントロールのデフォルトデータ。
 	ctx = xscriptcontext.getComponentContext()  # コンポーネントコンテクストの取得。
 	smgr = ctx.getServiceManager()  # サービスマネージャーの取得。	
 	doc = xscriptcontext.getDocument()  # マクロを起動した時のドキュメントのモデルを取得。   
@@ -83,19 +47,10 @@ def createHistoryDialog(xscriptcontext, enhancedmouseevent, dialogtitle, default
 		gridcolumn.addColumn(column0)  # 列を追加。
 		griddata = gridmodel.getPropertyValue("GridDataModel")  # GridDataModel
 		datarows = getSavedData(doc, "GridDatarows_{}".format(dialogtitle))  # グリッドコントロールの行をconfigシートのragenameから取得する。	
+		if datarows is None and defaultrows is not None:  # 履歴がなくデフォルトdatarowsがあるときデフォルトデータを使用。
+			datarows = [i if isinstance(i, (list, tuple)) else (i,) for i in defaultrows]  # defaultrowsの要素をリストかタプルでなければタプルに変換する。
 		if datarows:  # 行のリストが取得出来た時。
 			griddata.addRows(("",)*len(datarows), datarows)  # グリッドに行を追加。
-		elif defaultrows is not None:  # 履歴がなくデフォルトdatarowsがあるときデフォルトデータを使用。
-			for defaultrow in defaultrows:
-				if not isinstance(defaultrow, (list, tuple)):
-					pass
-				
-			
-			
-			map(isinstance, defaultrows, [(list, tuple)]*len(defaultrows))
-# 			isinstance(lst, (list, tuple))
-			
-			
 		addControl("Edit", textboxprops)  
 		checkboxcontrol1 = addControl("CheckBox", checkboxprops)  
 		actionlistener = ActionListener(xscriptcontext)
@@ -221,7 +176,7 @@ class WindowListener(unohelper.Base, XWindowListener):
 	def windowHidden(self, eventobject):
 		pass
 	def disposing(self, eventobject):
-		pass	
+		pass
 def resizeControls(controlcontainer, oldwidth, oldheight, newwidth, newheight):	 # ウィンドウの大きさの変更に合わせてコントロールの位置と大きさを変更。ウィンドウの大きさはここで変更するとコントロールが正しく移動できない。
 	gridcontrol1 = controlcontainer.getControl("Grid1")
 	editcontrol1 = controlcontainer.getControl("Edit1")
@@ -268,8 +223,22 @@ class ActionListener(unohelper.Base, XActionListener):
 					transliteration = smgr.createInstanceWithContext("com.sun.star.i18n.Transliteration", ctx)  # Transliteration。		
 					transliteration.loadModuleNew((FULLWIDTH_HALFWIDTH,), Locale(Language = "ja", Country = "JP"))	
 					txt = transliteration.transliterate(txt, 0, len(txt), [])[0]  # 半角に変換
-					griddata = controlcontainer.getControl("Grid1").getModel().getPropertyValue("GridDataModel")  # GridDataModelを取得。		
-					griddata.addRow("", (txt,))  # 新規行を追加。重複行はダイアログを閉じる時に整理する。
+					griddatamodel = controlcontainer.getControl("Grid1").getModel().getPropertyValue("GridDataModel")  # GridDataModelを取得。	
+	
+					datarows = []  # 重複を避けて行を取得。
+					for i in range(griddatamodel.RowCount):  # グリッドコントロールの行を取得。一括して取得する方法はない。					
+						datarow = griddatamodel.getRowData(i)  # グリッドコントロールの1行を取得。
+						if datarow
+						
+						
+						
+						if any(datarow) and not datarow in datarows:  # 1番下を残して重複データを削除。空セルだけの行も含めない。
+							datarows.append(datarow)
+					datarows.reverse()  # 使用順に戻す。					
+						
+						
+						
+					griddatamodel.addRow("", (txt,))  # 新規行を追加。
 					selection.setString(txt)  # 選択セルに代入。
 				sheet = controller.getActiveSheet()
 				celladdress = selection.getCellAddress()
@@ -285,17 +254,20 @@ class ActionListener(unohelper.Base, XActionListener):
 		pass
 def saveGridRows(doc, dialogtitle, gridcontrol, maxcount=500):  # グリッドコントロールの行をhistoryシートのragenameに保存する。		
 	griddatamodel = gridcontrol.getModel().getPropertyValue("GridDataModel")  # GridDataModel
+	
+	
 	datarows = []  # 重複を避けて行を取得。
 	for i in range(griddatamodel.RowCount)[::-1]:  # 下から行を取得。一括して取得する方法はない。
 		datarow = griddatamodel.getRowData(i)  # グリッドコントロールの1行を取得。
 		if any(datarow) and not datarow in datarows:  # 1番下を残して重複データを削除。空セルだけの行も含めない。
 			datarows.append(datarow)
 	datarows.reverse()  # 使用順に戻す。
+	
+	
 	if len(datarows)>maxcount:  # 上限より行数が多い時。
 		datarows = datarows[:maxcount]  # 上限数にする。
 	saveData(doc, "GridDatarows_{}".format(dialogtitle), datarows)
-def saveData(doc, rangename, obj):	# configシートの名前rangenameにobjをJSONにして保存する。
-	sheetname = "config"  # 保存するシート名。
+def saveData(doc, rangename, obj):	# configシートの名前rangenameにobjをJSONにして保存する。グローバル変数SHEETNAMEを使用。
 	namedranges = doc.getPropertyValue("NamedRanges")  # ドキュメントのNamedRangesを取得。
 	if rangename in namedranges:  # 名前がある時。
 		referredcells = namedranges[rangename].getReferredCells()  # 名前の参照セル範囲を取得。
@@ -306,9 +278,9 @@ def saveData(doc, rangename, obj):	# configシートの名前rangenameにobjをJ
 			namedranges.removeByName(rangename)  # 名前は重複しているとエラーになるので削除する。	
 	if not rangename in namedranges:  # 名前がない時。
 		sheets = doc.getSheets()  # シートコレクションを取得。
-		if not sheetname in sheets:  # 保存シートがない時。
-			sheets.insertNewByName(sheetname, len(sheets))   # 履歴シートを挿入。同名のシートがあるとRuntimeExceptionがでる。
-		sheet = sheets[sheetname]  # 保存シートを取得。
+		if not commons.SHEETNAME in sheets:  # 保存シートがない時。
+			sheets.insertNewByName(commons.SHEETNAME, len(sheets))   # 履歴シートを挿入。同名のシートがあるとRuntimeExceptionがでる。
+		sheet = sheets[commons.SHEETNAME]  # 保存シートを取得。
 		sheet.setPropertyValue("IsVisible", False)  # 非表示シートにする。
 		emptyranges = sheet[:, :2].queryEmptyCells()  # 2列目までの最初の空セル範囲コレクションを取得。
 		if len(emptyranges):  # セル範囲コレクションが取得出来た時。
@@ -464,4 +436,3 @@ def createConverters(window):  # ma単位をピクセルに変換する関数を
 		point = window.convertPointToPixel(Point(X=x, Y=y), MeasureUnit.APPFONT)
 		return point.X, point.Y
 	return maTopx
-g_exportedScripts = macro, #マクロセレクターに限定表示させる関数をタプルで指定。
