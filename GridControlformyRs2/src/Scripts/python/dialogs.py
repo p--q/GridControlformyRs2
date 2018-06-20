@@ -43,7 +43,7 @@ class EnhancedMouseClickHandler(unohelper.Base, XEnhancedMouseClickHandler):
 			if selection.supportsService("com.sun.star.sheet.SheetCell"):  # ターゲットがセルの時。
 				if enhancedmouseevent.ClickCount==2:  # ダブルクリックの時
 					try:
-						createDialog(self.xscriptcontext, enhancedmouseevent, "履歴")		
+						createHistoryDialog(self.xscriptcontext, enhancedmouseevent, "履歴")		
 						return False  # セル編集モードにしない。
 					except:
 						import traceback; traceback.print_exc()  # これがないとPyDevのコンソールにトレースバックが表示されない。stderrToServer=Trueが必須。
@@ -52,7 +52,7 @@ class EnhancedMouseClickHandler(unohelper.Base, XEnhancedMouseClickHandler):
 		return True  # シングルクリックでFalseを返すとセル選択範囲の決定の状態になってどうしようもなくなる。
 	def disposing(self, eventobject):  # ドキュメントを閉じる時でも呼ばれない。
 		pass
-def createDialog(xscriptcontext, enhancedmouseevent, dialogtitle):  # dialogtitleはダイアログのデータ保存名に使うのでユニークでないといけない。	
+def createHistoryDialog(xscriptcontext, enhancedmouseevent, dialogtitle, defaultrows=None):  # dialogtitleはダイアログのデータ保存名に使うのでユニークでないといけない。	
 	ctx = xscriptcontext.getComponentContext()  # コンポーネントコンテクストの取得。
 	smgr = ctx.getServiceManager()  # サービスマネージャーの取得。	
 	doc = xscriptcontext.getDocument()  # マクロを起動した時のドキュメントのモデルを取得。   
@@ -85,8 +85,19 @@ def createDialog(xscriptcontext, enhancedmouseevent, dialogtitle):  # dialogtitl
 		datarows = getSavedData(doc, "GridDatarows_{}".format(dialogtitle))  # グリッドコントロールの行をconfigシートのragenameから取得する。	
 		if datarows:  # 行のリストが取得出来た時。
 			griddata.addRows(("",)*len(datarows), datarows)  # グリッドに行を追加。
+		elif defaultrows is not None:  # 履歴がなくデフォルトdatarowsがあるときデフォルトデータを使用。
+			for defaultrow in defaultrows:
+				if not isinstance(defaultrow, (list, tuple)):
+					pass
+				
+			
+			
+			map(isinstance, defaultrows, [(list, tuple)]*len(defaultrows))
+# 			isinstance(lst, (list, tuple))
+			
+			
 		addControl("Edit", textboxprops)  
-		addControl("CheckBox", checkboxprops)  
+		checkboxcontrol1 = addControl("CheckBox", checkboxprops)  
 		actionlistener = ActionListener(xscriptcontext)
 		addControl("Button", buttonprops, {"addActionListener": actionlistener, "setActionCommand": "enter"})  
 		dialogstate = getSavedData(doc, "dialogstate_{}".format(dialogtitle))
@@ -94,6 +105,8 @@ def createDialog(xscriptcontext, enhancedmouseevent, dialogtitle):  # dialogtitl
 			if dialogstate["CheckBox1sate"]:  # 保存されたチェックボックスのチェックがある時大きさを復元する。
 				oldsize = controlcontainer.getSize()  # 変更前の大きさを取得。
 				resizeControls(controlcontainer, oldsize.Width, oldsize.Height, dialogstate["Width"], dialogstate["Height"])  # コントロールの大きさと位置を変更。
+			else:
+				checkboxcontrol1.setState(dialogstate["CheckBox1sate"])
 		rectangle = controlcontainer.getPosSize()  # コントロールコンテナのRectangle Structを取得。px単位。
 		rectangle.X, rectangle.Y = dialogpoint  # クリックした位置を取得。ウィンドウタイトルを含めない座標。
 		taskcreator = smgr.createInstanceWithContext('com.sun.star.frame.TaskCreator', ctx)
