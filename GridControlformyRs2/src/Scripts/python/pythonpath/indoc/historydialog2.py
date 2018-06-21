@@ -188,7 +188,11 @@ def saveData(doc, rangename, obj):	# configシートの名前rangenameにobjをJ
 			sheets.insertNewByName(commons.SHEETNAME, len(sheets))   # 履歴シートを挿入。同名のシートがあるとRuntimeExceptionがでる。
 		sheet = sheets[commons.SHEETNAME]  # 保存シートを取得。
 		sheet.setPropertyValue("IsVisible", False)  # 非表示シートにする。
-		emptyranges = sheet[:, :3].queryEmptyCells()  # 2列目までの最初の空セル範囲コレクションを取得。
+		
+		
+		# セルカーサーで範囲をひろげないとエラーになる。
+		
+		emptyranges = sheet[:, :2].queryEmptyCells()  # 2列目までの最初の空セル範囲コレクションを取得。
 		if len(emptyranges):  # セル範囲コレクションが取得出来た時。
 			emptyrange = emptyranges[0]  # 最初の空セル範囲を取得。
 			emptyrange[0, 0].setString(rangename)  # 1列目に名前を表示する。
