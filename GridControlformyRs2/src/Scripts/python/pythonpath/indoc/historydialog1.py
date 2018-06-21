@@ -16,7 +16,7 @@ from com.sun.star.util import XCloseListener
 from com.sun.star.util import MeasureUnit  # 定数
 from com.sun.star.view.SelectionType import MULTI  # enum 
 from com.sun.star.lang import Locale  # Struct
-def createHistoryDialog(xscriptcontext, enhancedmouseevent, dialogtitle, defaultrows=None):  # dialogtitleはダイアログのデータ保存名に使うのでユニークでないといけない。	defaultrowsはグリッドコントロールのデフォルトデータ。
+def createDialog(xscriptcontext, enhancedmouseevent, dialogtitle, defaultrows=None):  # dialogtitleはダイアログのデータ保存名に使うのでユニークでないといけない。	defaultrowsはグリッドコントロールのデフォルトデータ。
 	ctx = xscriptcontext.getComponentContext()  # コンポーネントコンテクストの取得。
 	smgr = ctx.getServiceManager()  # サービスマネージャーの取得。	
 	doc = xscriptcontext.getDocument()  # マクロを起動した時のドキュメントのモデルを取得。   
@@ -224,20 +224,6 @@ class ActionListener(unohelper.Base, XActionListener):
 					transliteration.loadModuleNew((FULLWIDTH_HALFWIDTH,), Locale(Language = "ja", Country = "JP"))	
 					txt = transliteration.transliterate(txt, 0, len(txt), [])[0]  # 半角に変換
 					griddatamodel = controlcontainer.getControl("Grid1").getModel().getPropertyValue("GridDataModel")  # GridDataModelを取得。	
-	
-					datarows = []  # 重複を避けて行を取得。
-					for i in range(griddatamodel.RowCount):  # グリッドコントロールの行を取得。一括して取得する方法はない。					
-						datarow = griddatamodel.getRowData(i)  # グリッドコントロールの1行を取得。
-						if datarow
-						
-						
-						
-						if any(datarow) and not datarow in datarows:  # 1番下を残して重複データを削除。空セルだけの行も含めない。
-							datarows.append(datarow)
-					datarows.reverse()  # 使用順に戻す。					
-						
-						
-						
 					griddatamodel.addRow("", (txt,))  # 新規行を追加。
 					selection.setString(txt)  # 選択セルに代入。
 				sheet = controller.getActiveSheet()
@@ -254,16 +240,12 @@ class ActionListener(unohelper.Base, XActionListener):
 		pass
 def saveGridRows(doc, dialogtitle, gridcontrol, maxcount=500):  # グリッドコントロールの行をhistoryシートのragenameに保存する。		
 	griddatamodel = gridcontrol.getModel().getPropertyValue("GridDataModel")  # GridDataModel
-	
-	
 	datarows = []  # 重複を避けて行を取得。
 	for i in range(griddatamodel.RowCount)[::-1]:  # 下から行を取得。一括して取得する方法はない。
 		datarow = griddatamodel.getRowData(i)  # グリッドコントロールの1行を取得。
 		if any(datarow) and not datarow in datarows:  # 1番下を残して重複データを削除。空セルだけの行も含めない。
 			datarows.append(datarow)
 	datarows.reverse()  # 使用順に戻す。
-	
-	
 	if len(datarows)>maxcount:  # 上限より行数が多い時。
 		datarows = datarows[:maxcount]  # 上限数にする。
 	saveData(doc, "GridDatarows_{}".format(dialogtitle), datarows)
