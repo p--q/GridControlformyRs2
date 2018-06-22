@@ -3,7 +3,7 @@
 import unohelper, json  # import pydevd; pydevd.settrace(stdoutToServer=True, stderrToServer=True)
 from indoc import commons
 from com.sun.star.accessibility import AccessibleRole  # 定数
-from com.sun.star.awt import XActionListener, XMenuListener, XMouseListener, XWindowListener
+from com.sun.star.awt import XActionListener, XMenuListener, XMouseListener, XWindowListener, XTextListener
 from com.sun.star.awt import MessageBoxButtons, MessageBoxResults, MouseButton, PopupMenuDirection, PosSize, ScrollBarOrientation  # 定数
 from com.sun.star.awt import Point, Rectangle, Selection  # Struct
 from com.sun.star.awt.MessageBoxType import QUERYBOX  # enum
@@ -56,7 +56,12 @@ def createDialog(xscriptcontext, enhancedmouseevent, dialogtitle, defaultrows=No
 			griddatamodel.addRows(("",)*len(datarows), datarows)  # グリッドに行を追加。
 			global DATAROWS
 			DATAROWS = datarows
-		addControl("Edit", textboxprops)  
+			
+			
+		textlistener = TextListener(xscriptcontext)	
+		addControl("Edit", textboxprops, {"addTextListener": textlistener})  
+		
+		
 		checkboxcontrol1 = addControl("CheckBox", checkboxprops)  
 		addControl("Button", buttonprops, {"addActionListener": actionlistener, "setActionCommand": "enter"})  
 		dialogstate = getSavedData(doc, "dialogstate_{}".format(dialogtitle))
@@ -81,7 +86,9 @@ def createDialog(xscriptcontext, enhancedmouseevent, dialogtitle, defaultrows=No
 		dialogwindow.setVisible(True) # ウィンドウの表示	
 		windowlistener = WindowListener(controlcontainer)
 		dialogwindow.addWindowListener(windowlistener) # setVisible(True)でも呼び出されるので、その後でリスナーを追加する。		
-		args = doc, controlcontainer, gridselectionlistener, actionlistener, dialogwindow, windowlistener, mouselistener, menulistener
+		
+		
+		args = doc, controlcontainer, gridselectionlistener, actionlistener, dialogwindow, windowlistener, mouselistener, menulistener, textlistener
 		dialogframe.addCloseListener(CloseListener(args))  # CloseListener。ノンモダルダイアログのリスナー削除用。	
 		scrollDown(gridcontrol1)
 def scrollDown(gridcontrol):		
@@ -92,12 +99,56 @@ def scrollDown(gridcontrol):
 			if child.getOrientation()==ScrollBarOrientation.VERTICAL:  # 縦スクロールバーの時。
 				child.setValue(child.getMaximum())  # 最大値にスクロールさせる。
 				break			
+class TextListener(unohelper.Base, XTextListener):
+	def __init__(self, xscriptcontext):
+		
+		
+# 		ctx = self.xscriptcontext.getComponentContext()  # コンポーネントコンテクストの取得。
+# 		smgr = ctx.getServiceManager()  # サービスマネージャーの取得。					
+# 		transliteration = smgr.createInstanceWithContext("com.sun.star.i18n.Transliteration", ctx)  # Transliteration。		
+# 		transliteration.loadModuleNew((FULLWIDTH_HALFWIDTH,), Locale(Language = "ja", Country = "JP"))  # 全角を半角に変換するモジュール。			
+		
+		self.transliteration = fullwidth_halfwidth(xscriptcontext)
+		self.history = ""  # 前値を保存する。
+	def textChanged(self, textevent):  # 複数回呼ばれるので前値との比較が必要。
+		
+		import pydevd; pydevd.settrace(stdoutToServer=True, stderrToServer=True)
+		
+		editcontrol1 = textevent.Source
+		txt = editcontrol1.getText()
+		if txt!=self.history:  # 前値から変化する時のみ。
+			
+
+			txt = self.transliteration.transliterate(txt, 0, len(txt), [])[0]  # 半角に変換
+# 			editcontrol1.removeTextListener(self)		
+			editcontrol1.setText(txt)  # 永久ループになるのでTextListenerを外しておく。
+				
+			
+			
+			datarows = DATAROWS
+			newdatarows = [i for i in datarows if i[0].startswith(txt)]  # txtで始まっている行だけに絞る。txtが空文字の時はすべてTrueになる。
+			griddatamodel = editcontrol1.getContext().getControl("Grid1").getModel().getPropertyValue("GridDataModel")  # GridDataModelを取得。	
+			griddatamodel.removeAllRows()  # グリッドコントロールの行を全削除。		
+			griddatamodel.addRows(("",)*len(newdatarows), newdatarows)  # グリッドに行を追加。
+			self.history = txt	
+			
+			
+			editcontrol1.AddTextListener(self)	
+			
+	def disposing(self, eventobject):
+		pass
+def fullwidth_halfwidth(xscriptcontext):
+	ctx = xscriptcontext.getComponentContext()  # コンポーネントコンテクストの取得。
+	smgr = ctx.getServiceManager()  # サービスマネージャーの取得。					
+	transliteration = smgr.createInstanceWithContext("com.sun.star.i18n.Transliteration", ctx)  # Transliteration。		
+	transliteration.loadModuleNew((FULLWIDTH_HALFWIDTH,), Locale(Language = "ja", Country = "JP"))  # 全角を半角に変換するモジュール。
+	return transliteration
 class CloseListener(unohelper.Base, XCloseListener):  # ノンモダルダイアログのリスナー削除用。
 	def __init__(self, args):
 		self.args = args
 	def queryClosing(self, eventobject, getsownership):  # ノンモダルダイアログを閉じる時に発火。
 		dialogframe = eventobject.Source
-		doc, controlcontainer, gridselectionlistener, actionlistener, dialogwindow, windowlistener, mouselistener, menulistener = self.args
+		doc, controlcontainer, gridselectionlistener, actionlistener, dialogwindow, windowlistener, mouselistener, menulistener, textlistener = self.args
 		size = controlcontainer.getSize()
 		dialogstate = {"CheckBox1sate": controlcontainer.getControl("CheckBox1").getState(),\
 					"Width": size.Width,\
@@ -111,6 +162,8 @@ class CloseListener(unohelper.Base, XCloseListener):  # ノンモダルダイア
 		gridcontrol1.removeMouseListener(mouselistener)
 		buttoncontrol1 = controlcontainer.getControl("Button1")
 		buttoncontrol1.removeActionListener(actionlistener)
+		editcontrol1 = controlcontainer.getControl("Edit1")
+		editcontrol1.removeTextListener(textlistener)		
 		dialogwindow.removeWindowListener(windowlistener)
 		eventobject.Source.removeCloseListener(self)
 	def notifyClosing(self, eventobject):
@@ -120,6 +173,9 @@ class CloseListener(unohelper.Base, XCloseListener):  # ノンモダルダイア
 class ActionListener(unohelper.Base, XActionListener):
 	def __init__(self, xscriptcontext):
 		self.xscriptcontext = xscriptcontext
+		
+		self.transliteration = fullwidth_halfwidth(xscriptcontext)
+		
 	def actionPerformed(self, actionevent):
 		cmd = actionevent.ActionCommand
 		if cmd=="enter":
@@ -131,11 +187,16 @@ class ActionListener(unohelper.Base, XActionListener):
 				edit1 = controlcontainer.getControl("Edit1")  # テキストボックスコントロールを取得。
 				txt = edit1.getText()  # テキストボックスコントロールの文字列を取得。
 				if txt:  # テキストボックスコントロールに文字列がある時。
-					ctx = self.xscriptcontext.getComponentContext()  # コンポーネントコンテクストの取得。
-					smgr = ctx.getServiceManager()  # サービスマネージャーの取得。					
-					transliteration = smgr.createInstanceWithContext("com.sun.star.i18n.Transliteration", ctx)  # Transliteration。		
-					transliteration.loadModuleNew((FULLWIDTH_HALFWIDTH,), Locale(Language = "ja", Country = "JP"))	
-					txt = transliteration.transliterate(txt, 0, len(txt), [])[0]  # 半角に変換
+					
+# 					ctx = self.xscriptcontext.getComponentContext()  # コンポーネントコンテクストの取得。
+# 					smgr = ctx.getServiceManager()  # サービスマネージャーの取得。					
+# 					transliteration = smgr.createInstanceWithContext("com.sun.star.i18n.Transliteration", ctx)  # Transliteration。		
+# 					transliteration.loadModuleNew((FULLWIDTH_HALFWIDTH,), Locale(Language = "ja", Country = "JP"))	
+					
+					
+					
+					txt = self.transliteration.transliterate(txt, 0, len(txt), [])[0]  # 半角に変換
+					
 					gridcontrol1 = controlcontainer.getControl("Grid1")
 					griddatamodel = gridcontrol1.getModel().getPropertyValue("GridDataModel")  # GridDataModelを取得。	
 					datarows = DATAROWS
@@ -155,6 +216,9 @@ class ActionListener(unohelper.Base, XActionListener):
 				controller.select(nextcell)  # 下のセルを選択。
 				nexttxt = nextcell.getString()  # 下のセルの文字列を取得。
 				edit1.setText(nexttxt)  # テキストボックスコントロールにセルの内容を取得。
+				
+				# インクルメントする？
+				
 				edit1.setFocus()  # テキストボックスコントロールをフォーカスする。
 				textlength = len(nexttxt)  # テキストボックスコントロール内の文字列の文字数を取得。
 				edit1selection = Selection(Min=textlength, Max=textlength)  # カーソルの位置を最後にする。指定しないと先頭になる。
@@ -246,11 +310,22 @@ class MenuListener(unohelper.Base, XMenuListener):
 			msg = "選択行を削除しますか?"
 			msgbox = peer.getToolkit().createMessageBox(peer, QUERYBOX, MessageBoxButtons.BUTTONS_YES_NO, commons.SHEETNAME, msg)
 			if msgbox.execute()==MessageBoxResults.YES:		
-				selectedrows = gridcontrol.getSelectedRows() if griddatamodel.RowCount>1 else (0,)  # 選択行インデックスのタプルを取得。1行だけの時はgetSelectedRows()で取得できない。		
-				[datarows.pop(i) for i in reversed(selectedrows)]  # 選択行を下から削除。	
-				griddatamodel.removeAllRows()  # グリッドコントロールの行を全削除。				
-				if datarows:  # 行が残っている時。
-					griddatamodel.addRows(("",)*len(datarows), datarows)  # グリッドに行を追加。	
+				selectedrows = gridcontrol.getSelectedRows() if griddatamodel.RowCount>1 else (0,)  # 選択行インデックスのタプルを取得。1行だけの時はgetSelectedRows()で取得できない。
+				
+				for i in reversed(selectedrows):  # 選択した行インデックスを後ろから取得。逐次検索のときはグリッドコントロールとDATAROWSが一致しないので別に処理する。
+# 					datarow = griddatamodel.getRowData(i)
+					datarows.remove(griddatamodel.getRowData(i))  # 削除するデータ行と一致する要素をDATAROWSから削除。
+					griddatamodel.removeRow(i)  # グリッドコントロールから選択行を削除。
+					
+					
+				
+						
+# 				[datarows.pop(i) for i in reversed(selectedrows)]  # 選択行を下から削除。	
+				
+				
+# 				griddatamodel.removeAllRows()  # グリッドコントロールの行を全削除。				
+# 				if datarows:  # 行が残っている時。
+# 					griddatamodel.addRows(("",)*len(datarows), datarows)  # グリッドに行を追加。	
 		elif cmd=="deleteall":  # 全行を削除する。  	
 			msg = "すべての行を削除しますか?"
 			msgbox = peer.getToolkit().createMessageBox(peer, QUERYBOX, MessageBoxButtons.BUTTONS_YES_NO, commons.SHEETNAME, msg)

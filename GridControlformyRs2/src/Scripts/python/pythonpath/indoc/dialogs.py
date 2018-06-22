@@ -1,7 +1,7 @@
 #!/opt/libreoffice5.4/program/python
 # -*- coding: utf-8 -*-
 # import pydevd; pydevd.settrace(stdoutToServer=True, stderrToServer=True)
-from indoc import historydialog1, historydialog2
+from indoc import historydialog1, historydialog2, historydialog3
 from com.sun.star.awt import MouseButton  # 定数
 def mousePressed(enhancedmouseevent, xscriptcontext):  # マウスボタンを押した時。controllerにコンテナウィンドウはない。
 		selection = enhancedmouseevent.Target  # ターゲットのセルを取得。
@@ -16,8 +16,11 @@ def mousePressed(enhancedmouseevent, xscriptcontext):  # マウスボタンを�
 						defaultrows = "item1", "item2", "item3", "item4"
 						if dialogname=="historydialog1":  # ダイアログを閉じる時に重複要素を削除する。
 							historydialog1.createDialog(xscriptcontext, enhancedmouseevent, dialogname, defaultrows)	
-						elif dialogname=="historydialog2":  	
+						elif dialogname=="historydialog2":   # グリッドデータを変更する時に重複を削除する。他バグフィックス。
 							historydialog2.createDialog(xscriptcontext, enhancedmouseevent, dialogname, defaultrows)	
+						elif dialogname=="historydialog3":   # 
+							historydialog3.createDialog(xscriptcontext, enhancedmouseevent, dialogname, defaultrows)						
+					
 					
 					
 						
