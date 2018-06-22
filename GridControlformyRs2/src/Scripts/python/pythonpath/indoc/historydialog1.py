@@ -1,7 +1,6 @@
 #!/opt/libreoffice5.4/program/python
 # -*- coding: utf-8 -*-
 import unohelper, json  # import pydevd; pydevd.settrace(stdoutToServer=True, stderrToServer=True)
-from indoc import commons
 from com.sun.star.accessibility import AccessibleRole  # 定数
 from com.sun.star.awt import XActionListener, XMenuListener, XMouseListener, XWindowListener
 from com.sun.star.awt import MessageBoxButtons, MessageBoxResults, MouseButton, PopupMenuDirection, PosSize, ScrollBarOrientation  # 定数
@@ -16,6 +15,7 @@ from com.sun.star.util import XCloseListener
 from com.sun.star.util import MeasureUnit  # 定数
 from com.sun.star.view.SelectionType import MULTI  # enum 
 from com.sun.star.lang import Locale  # Struct
+SHEETNAME = "config"  # データを保存するシート名。
 def createDialog(xscriptcontext, enhancedmouseevent, dialogtitle, defaultrows=None):  # dialogtitleはダイアログのデータ保存名に使うのでユニークでないといけない。	defaultrowsはグリッドコントロールのデフォルトデータ。
 	ctx = xscriptcontext.getComponentContext()  # コンポーネントコンテクストの取得。
 	smgr = ctx.getServiceManager()  # サービスマネージャーの取得。	
@@ -260,9 +260,9 @@ def saveData(doc, rangename, obj):	# configシートの名前rangenameにobjをJ
 			namedranges.removeByName(rangename)  # 名前は重複しているとエラーになるので削除する。	
 	if not rangename in namedranges:  # 名前がない時。
 		sheets = doc.getSheets()  # シートコレクションを取得。
-		if not commons.SHEETNAME in sheets:  # 保存シートがない時。
-			sheets.insertNewByName(commons.SHEETNAME, len(sheets))   # 履歴シートを挿入。同名のシートがあるとRuntimeExceptionがでる。
-		sheet = sheets[commons.SHEETNAME]  # 保存シートを取得。
+		if not SHEETNAME in sheets:  # 保存シートがない時。
+			sheets.insertNewByName(SHEETNAME, len(sheets))   # 履歴シートを挿入。同名のシートがあるとRuntimeExceptionがでる。
+		sheet = sheets[SHEETNAME]  # 保存シートを取得。
 		sheet.setPropertyValue("IsVisible", False)  # 非表示シートにする。
 		emptyranges = sheet[:, :2].queryEmptyCells()  # 2列目までの最初の空セル範囲コレクションを取得。
 		if len(emptyranges):  # セル範囲コレクションが取得出来た時。
