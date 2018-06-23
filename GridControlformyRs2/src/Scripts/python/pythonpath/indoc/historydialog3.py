@@ -43,8 +43,8 @@ def createDialog(xscriptcontext, enhancedmouseevent, dialogtitle, defaultrows=No
 		mouselistener = MouseListener(xscriptcontext)
 		menulistener = MenuListener(controlcontainer)  # コンテクストメニューにつけるリスナー。
 		actionlistener = ActionListener(xscriptcontext)  # ボタンコントロールにつけるリスナー。
-		items = ("~選択行を削除", 0, {"setCommand": "delete"}),\
-				("~全行を削除", 0, {"setCommand": "deleteall"})  # グリッドコントロールにつける右クリックメニュー。
+		items = ("選択行を削除", 0, {"setCommand": "delete"}),\
+				("全行を削除", 0, {"setCommand": "deleteall"})  # グリッドコントロールにつける右クリックメニュー。
 		mouselistener.gridpopupmenu = menuCreator(ctx, smgr)("PopupMenu", items, {"addMenuListener": menulistener})  # 右クリックでまず呼び出すポップアップメニュー。 
 		gridcontrol1 = addControl("Grid", gridprops, {"addMouseListener": mouselistener, "addSelectionListener": gridselectionlistener})  # グリッドコントロールの取得。gridは他のコントロールの設定に使うのでコピーを渡す。
 		gridmodel = gridcontrol1.getModel()  # グリッドコントロールモデルの取得。
@@ -66,17 +66,19 @@ def createDialog(xscriptcontext, enhancedmouseevent, dialogtitle, defaultrows=No
 		checkboxcontrol2 = addControl("CheckBox", checkboxprops2, {"addItemListener": itemlistener}) 
 		addControl("Button", buttonprops, {"addActionListener": actionlistener, "setActionCommand": "enter"})  
 		dialogstate = getSavedData(doc, "dialogstate_{}".format(dialogtitle))
-		if dialogstate:  # 保存してあるダイアログの状態がある時。
-			if "CheckBox1sate" in dialogstate and dialogstate["CheckBox1sate"]:  # サイズ保存にチェックがある時、大きさを復元する。
-				oldsize = controlcontainer.getSize()  # 変更前の大きさを取得。
-				resizeControls(controlcontainer, oldsize.Width, oldsize.Height, dialogstate["Width"], dialogstate["Height"])  # コントロールの大きさと位置を変更。
-			else:
-				checkboxcontrol1.setState(dialogstate["CheckBox1sate"])
-			if "CheckBox2sate" in dialogstate and dialogstate["CheckBox2sate"]:  # 逐次検査の状態が保存されている時、状態を復元する。
-				state = dialogstate["CheckBox2sate"]
-				if state:  # チェックされている時逐次検索を有効にする。
+		if dialogstate is not None:  # 保存してあるダイアログの状態がある時。
+			checkbox1sate = dialogstate.get("CheckBox1sate")  # キーがなければNoneが返る。
+			checkbox2sate = dialogstate.get("CheckBox2sate")
+			if checkbox1sate is not None:
+				if checkbox1sate:
+					oldsize = controlcontainer.getSize()  # 変更前の大きさを取得。
+					resizeControls(controlcontainer, oldsize.Width, oldsize.Height, dialogstate["Width"], dialogstate["Height"])  # コントロールの大きさと位置を変更。
+				else:
+					checkboxcontrol1.setState(checkbox1sate)					
+			if checkbox2sate is not None:	
+				if checkbox2sate:  # チェックされている時逐次検索を有効にする。
 					textlistener.flg = True  #	itemlistenerが発火する前にフラグを立てとかないといけない。	
-				checkboxcontrol2.setState(state)  # itemlistenerが発火する。
+				checkboxcontrol2.setState(checkbox2sate)  # itemlistenerが発火する。				
 		rectangle = controlcontainer.getPosSize()  # コントロールコンテナのRectangle Structを取得。px単位。
 		rectangle.X, rectangle.Y = dialogpoint  # クリックした位置を取得。ウィンドウタイトルを含めない座標。
 		taskcreator = smgr.createInstanceWithContext('com.sun.star.frame.TaskCreator', ctx)
@@ -159,10 +161,8 @@ class CloseListener(unohelper.Base, XCloseListener):  # ノンモダルダイア
 		mouselistener.gridpopupmenu.removeMenuListener(menulistener)
 		gridcontrol1.removeSelectionListener(gridselectionlistener)
 		gridcontrol1.removeMouseListener(mouselistener)
-		buttoncontrol1 = controlcontainer.getControl("Button1")
-		buttoncontrol1.removeActionListener(actionlistener)
-		editcontrol1 = controlcontainer.getControl("Edit1")
-		editcontrol1.removeTextListener(textlistener)	
+		controlcontainer.getControl("Button1").removeActionListener(actionlistener)
+		controlcontainer.getControl("Edit1").removeTextListener(textlistener)
 		dialogwindow.removeWindowListener(windowlistener)
 		eventobject.Source.removeCloseListener(self)
 	def notifyClosing(self, eventobject):
@@ -334,14 +334,13 @@ class GridSelectionListener(unohelper.Base, XGridSelectionListener):
 		pass
 def resizeControls(controlcontainer, oldwidth, oldheight, newwidth, newheight):	 # ウィンドウの大きさの変更に合わせてコントロールの位置と大きさを変更。ウィンドウの大きさはここで変更するとコントロールが正しく移動できない。
 	gridcontrol1 = controlcontainer.getControl("Grid1")
-	editcontrol1 = controlcontainer.getControl("Edit1")
 	checkboxcontrol1 = controlcontainer.getControl("CheckBox1")
 	checkboxcontrol2 = controlcontainer.getControl("CheckBox2")
 	buttoncontrol1 = controlcontainer.getControl("Button1")
-	checkbox1rect = checkboxcontrol1.getPosSize()
-	m = checkbox1rect.X  # コントロール間の間隔をチェックボックスのPositionXから取得。
-	minwidth = checkbox1rect.Width + checkboxcontrol2.getPosSize().Width + buttoncontrol1.getSize().Width + m*3  # 幅下限を取得。
-	minheight = checkbox1rect.Height*3 + m*4  # 高さ下限を取得。
+	gridcontrol1rect = gridcontrol1.getPosSize()  # コントロール間の間隔を幅はX、高さはYから取得。
+	checkbox1rect = checkboxcontrol1.getPosSize()  # hをHeightから取得。
+	minwidth = checkbox1rect.Width + checkboxcontrol2.getPosSize().Width + buttoncontrol1.getSize().Width + gridcontrol1rect.X*3  # 幅下限を取得。
+	minheight = checkbox1rect.Height*3 + gridcontrol1rect.Y*4  # 高さ下限を取得。
 	if newwidth<minwidth:  # 変更後のコントロールコンテナの幅を取得。サイズ下限より小さい時は下限値とする。
 		newwidth = minwidth
 	if newheight<minheight:  # 変更後のコントロールコンテナの高さを取得。サイズ下限より小さい時は下限値とする。
@@ -349,9 +348,9 @@ def resizeControls(controlcontainer, oldwidth, oldheight, newwidth, newheight):	
 	diff_width = newwidth - oldwidth  # 幅変化分
 	diff_height = newheight - oldheight  # 高さ変化分		
 	applyDiff = createApplyDiff(diff_width, diff_height)  # コントロールの位置と大きさを変更する関数を取得。
-	controlcontainer.setPosSize(0, 0, newwidth, newheight, PosSize.SIZE)  # コントロールコンテナの大きさを変更する。
+	applyDiff(controlcontainer, PosSize.SIZE)  # コントロールコンテナの大きさを変更する。
 	applyDiff(gridcontrol1, PosSize.SIZE)
-	applyDiff(editcontrol1, PosSize.Y+PosSize.WIDTH)
+	applyDiff(controlcontainer.getControl("Edit1"), PosSize.Y+PosSize.WIDTH)
 	applyDiff(checkboxcontrol1, PosSize.Y)
 	applyDiff(checkboxcontrol2, PosSize.Y)
 	applyDiff(buttoncontrol1, PosSize.POS)		

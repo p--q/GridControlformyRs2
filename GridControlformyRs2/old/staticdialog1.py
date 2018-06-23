@@ -15,77 +15,49 @@ from com.sun.star.util import XCloseListener
 from com.sun.star.util import MeasureUnit  # 定数
 from com.sun.star.view.SelectionType import MULTI  # enum 
 from com.sun.star.lang import Locale  # Struct
-from com.sun.star.awt import MenuItemStyle  # 定数
+from com.sun.star.awt.MenuItemStyle import AUTOCHECK, CHECKABLE
 SHEETNAME = "config"  # データを保存するシート名。
-DATAROWS = []  # グリッドコントロールのデータ行。複数クラスからアクセスするのでグローバルにしないといけない。
 def createDialog(xscriptcontext, enhancedmouseevent, dialogtitle, defaultrows=None):  # dialogtitleはダイアログのデータ保存名に使うのでユニークでないといけない。defaultrowsはグリッドコントロールのデフォルトデータ。
 	ctx = xscriptcontext.getComponentContext()  # コンポーネントコンテクストの取得。
 	smgr = ctx.getServiceManager()  # サービスマネージャーの取得。	
 	doc = xscriptcontext.getDocument()  # マクロを起動した時のドキュメントのモデルを取得。   
 	dialogpoint = getDialogPoint(doc, enhancedmouseevent)  # クリックした位置のメニューバーの高さ分下の位置を取得。単位ピクセル。一部しか表示されていないセルのときはNoneが返る。
 	if dialogpoint:  # クリックした位置が取得出来た時。
-		
-# 		import pydevd; pydevd.settrace(stdoutToServer=True, stderrToServer=True)
-		
 		docframe = doc.getCurrentController().getFrame()  # モデル→コントローラ→フレーム、でドキュメントのフレームを取得。
 		containerwindow = docframe.getContainerWindow()  # ドキュメントのウィンドウ(コンテナウィンドウ=ピア)を取得。
-		toolkit = containerwindow.getToolkit()  # ピアからツールキットを取得。 	
-		maTopx = createConverters(containerwindow)  # ma単位をピクセルに変換する関数を取得。
+		toolkit = containerwindow.getToolkit()  # ピアからツールキットを取得。  		
 		m = 6  # コントロール間の間隔。
-		h = 12  # コントロール間の高さ
-		gridprops = {"PositionX": 0, "PositionY": 0, "Width": 50, "Height": 50, "ShowRowHeader": False, "ShowColumnHeader": False, "SelectionModel": MULTI}  # グリッドコントロールのプロパティ。
-		controlcontainerprops = {"PositionX": 0, "PositionY": 0, "Width": XWidth(gridprops), "Height": YHeight(gridprops), "BackgroundColor": 0xF0F0F0}  # コントロールコンテナの基本プロパティ。幅は右端のコントロールから取得。高さはコントロール追加後に最後に設定し直す。		
+		gridprops = {"PositionX": m, "PositionY": m, "Height": 50, "Width": 100, "ShowRowHeader": False, "ShowColumnHeader": False, "SelectionModel": MULTI}  # グリッドコントロールのプロパティ。
+		controlcontainerprops = {"PositionX": 0, "PositionY": 0, "Width": XWidth(gridprops, m), "Height": YHeight(gridprops, m), "BackgroundColor": 0xF0F0F0}  # コントロールコンテナの基本プロパティ。幅は右端のコントロールから取得。高さはコントロール追加後に最後に設定し直す。		
+		maTopx = createConverters(containerwindow)  # ma単位をピクセルに変換する関数を取得。
 		controlcontainer, addControl = controlcontainerMaCreator(ctx, smgr, maTopx, controlcontainerprops)  # コントロールコンテナの作成。		
-		gridselectionlistener = GridSelectionListener()
 		mouselistener = MouseListener(xscriptcontext)
-		
-		# コンテクストメニューをコンテナウィンドウに付け替える。グリッドにデータがないとメニューが選択できないので。
-		
-		
-		menulistener = MenuListener(controlcontainer)  # コンテクストメニューにつけるリスナー。
-		items = ("オプション表示", MenuItemStyle.CHECKABLE+MenuItemStyle.AUTOCHECK, {"checkItem": False}),
+		datarows = getSavedData(doc, "GridDatarows_{}".format(dialogtitle))  # グリッドコントロールの行をconfigシートのragenameから取得する。	
+		if datarows is None and defaultrows is not None:  # 履歴がなくデフォルトdatarowsがあるときデフォルトデータを使用。
+			datarows = [i if isinstance(i, (list, tuple)) else (i,) for i in defaultrows]  # defaultrowsの要素をリストかタプルでなければタプルに変換する。		
+		menulistener = MenuListener(controlcontainer, datarows)  # コンテクストメニューにつけるリスナー。
+		items = ("追記", CHECKABLE+AUTOCHECK, {"checkItem": False}),\
+				("サイズ保存", CHECKABLE+AUTOCHECK, {"checkItem": True}),\
+				(),\
+				("新規行挿入", 0, {"setCommand": "insert"}),\
+				("行編集", 0, {"setCommand": "edit"}),\
+				(),\
+		 		("切り取り", 0, {"setCommand": "cut"}),\
+				("コピー", 0, {"setCommand": "copy"}),\
+				("上に貼り付け", 0, {"setCommand": "pasteabove"}),\
+				("下に貼り付け", 0, {"setCommand": "pastebelow"}),\
+				(),\
+				("選択行を削除", 0, {"setCommand": "delete"}),\
+				("全行を削除", 0, {"setCommand": "deleteall"})  # グリッドコントロールにつける右クリックメニュー。
 		mouselistener.gridpopupmenu = menuCreator(ctx, smgr)("PopupMenu", items, {"addMenuListener": menulistener})  # 右クリックでまず呼び出すポップアップメニュー。 
-		gridcontrol1 = addControl("Grid", gridprops, {"addMouseListener": mouselistener, "addSelectionListener": gridselectionlistener})  # グリッドコントロールの取得。gridは他のコントロールの設定に使うのでコピーを渡す。		
+		gridcontrol1 = addControl("Grid", gridprops, {"addMouseListener": mouselistener})  # グリッドコントロールの取得。gridは他のコントロールの設定に使うのでコピーを渡す。
 		gridmodel = gridcontrol1.getModel()  # グリッドコントロールモデルの取得。
 		gridcolumn = gridmodel.getPropertyValue("ColumnModel")  # DefaultGridColumnModel
 		column0 = gridcolumn.createColumn()  # 列の作成。
 		gridcolumn.addColumn(column0)  # 列を追加。
 		griddatamodel = gridmodel.getPropertyValue("GridDataModel")  # GridDataModel
-		datarows = getSavedData(doc, "GridDatarows_{}".format(dialogtitle))  # グリッドコントロールの行をconfigシートのragenameから取得する。	
-		if datarows is None and defaultrows is not None:  # 履歴がなくデフォルトdatarowsがあるときデフォルトデータを使用。
-			datarows = [i if isinstance(i, (list, tuple)) else (i,) for i in defaultrows]  # defaultrowsの要素をリストかタプルでなければタプルに変換する。
 		if datarows:  # 行のリストが取得出来た時。
 			griddatamodel.addRows(("",)*len(datarows), datarows)  # グリッドに行を追加。
-			global DATAROWS
-			DATAROWS = datarows		
-		controlcontainerwindowlistener = ControlContainerWindowListener(controlcontainer)		
-		controlcontainer.addWindowListener(controlcontainerwindowlistener)  # コントロールコンテナの大きさを変更するとグリッドコントロールの大きさも変更するようにする。
-		
-		
-		
-		textboxprops = {"PositionX": m, "PositionY": m, "Height": h}  # テクストボックスコントロールのプロパティ。
-		checkboxprops1 = {"PositionX": m, "PositionY": YHeight(textboxprops, 2), "Width": 46, "Height": h, "Label": "~セルに追記", "State": 0} # セルに追記はデフォルトでは無効。
-		buttonprops1 = {"PositionX": XWidth(checkboxprops1), "PositionY": YHeight(textboxprops, 2), "Width": 18, "Height": h+2, "Label": "上へ"}  # ボタンのプロパティ。PushButtonTypeの値はEnumではエラーになる。VerticalAlignではtextboxと高さが揃わない。
-		buttonprops3 = {"PositionX": XWidth(buttonprops1, m), "PositionY": YHeight(textboxprops, 2), "Width": 28, "Height": h+2, "Label": "行挿入"}
-		checkboxprops2 = {"PositionX": m, "PositionY": YHeight(checkboxprops1, 2), "Width": 46, "Height": h, "Label": "~サイズ保存", "State": 1}  # サイズ保存はデフォルトでは有効。		
-		buttonprops2 = {"PositionX": XWidth(checkboxprops1), "PositionY": YHeight(buttonprops1, 2), "Width": 18, "Height": h+2, "Label": "下へ"}
-		buttonprops4 = {"PositionX": XWidth(buttonprops1, m), "PositionY": YHeight(buttonprops1, 2), "Width": 28, "Height": h+2, "Label": "行削除"}
-		textboxprops.update({"Width": XWidth(buttonprops3, -m)})  # 右端のコントロールから左の余白mを除いた幅を取得。
-		optioncontrolcontainerprops = {"PositionX": 0, "PositionY": 0, "Width": XWidth(textboxprops, m), "Height": YHeight(buttonprops2, m), "BackgroundColor": 0xF0F0F0}  # コントロールコンテナの基本プロパティ。幅は右端のコントロールから取得。高さはコントロール追加後に最後に設定し直す。		
-		optioncontrolcontainer, optionaddControl = controlcontainerMaCreator(ctx, smgr, maTopx, optioncontrolcontainerprops)  # コントロールコンテナの作成。		
-		textlistener = TextListener(xscriptcontext)	
-		optionaddControl("Edit", textboxprops, {"addTextListener": textlistener})  
-		checkboxcontrol1 = optionaddControl("CheckBox", checkboxprops1)  
-		checkboxcontrol2 = optionaddControl("CheckBox", checkboxprops2)  
-		actionlistener = ActionListener(xscriptcontext)  # ボタンコントロールにつけるリスナー。
-		optionaddControl("Button", buttonprops1, {"addActionListener": actionlistener, "setActionCommand": "up"})  
-		optionaddControl("Button", buttonprops2, {"addActionListener": actionlistener, "setActionCommand": "down"})  
-		optionaddControl("Button", buttonprops3, {"addActionListener": actionlistener, "setActionCommand": "insert"})  
-		optionaddControl("Button", buttonprops4, {"addActionListener": actionlistener, "setActionCommand": "delete"})  
-# 		optioncontrolcontainerwindowlistener = OptionControlContainerWindowListener(optioncontrolcontainer)		
-# 		optioncontrolcontainer.addWindowListener(optioncontrolcontainerwindowlistener)  # コントロールコンテナの大きさを変更するとグリッドコントロールの大きさも変更するようにする。
-
-
 		rectangle = controlcontainer.getPosSize()  # コントロールコンテナのRectangle Structを取得。px単位。
 		rectangle.X, rectangle.Y = dialogpoint  # クリックした位置を取得。ウィンドウタイトルを含めない座標。
 		taskcreator = smgr.createInstanceWithContext('com.sun.star.frame.TaskCreator', ctx)
@@ -94,124 +66,40 @@ def createDialog(xscriptcontext, enhancedmouseevent, dialogtitle, defaultrows=No
 		dialogwindow = dialogframe.getContainerWindow()  # ダイアログのコンテナウィンドウを取得。
 		dialogframe.setTitle(dialogtitle)  # フレームのタイトルを設定。
 		docframe.getFrames().append(dialogframe) # 新しく作ったフレームを既存のフレームの階層に追加する。		
-		controlcontainer.createPeer(toolkit, dialogwindow) # ウィンドウにコントロールコンテナを描画。 		
-		
-
+		controlcontainer.createPeer(toolkit, dialogwindow) # ウィンドウにコントロールを描画。 
 		frameactionlistener = FrameActionListener()  # FrameActionListener。フレームがアクティブでなくなった時に閉じるため。
 		dialogframe.addFrameActionListener(frameactionlistener)  # FrameActionListenerをダイアログフレームに追加。
 		controlcontainer.setVisible(True)  # コントロールの表示。
-		dialogwindow.setVisible(True) # ウィンドウの表示		
-		
-		windowlistener = WindowListener(controlcontainer, optioncontrolcontainer) # コンテナウィンドウからコントロールコンテナを取得する方法はないはずなので、ここで渡す。WindowListenerはsetVisible(True)で呼び出される。
-		dialogwindow.addWindowListener(windowlistener) # コンテナウィンドウにリスナーを追加する。
-		
-		
-# 		dialogstate = getSavedData(doc, "dialogstate_{}".format(dialogtitle))  # 保存データを取得。optioncontrolcontainerの表示状態は常にFalseなので保存されていない。
-# 		if dialogstate is not None:  # 保存してあるダイアログの状態がある時。
-# 			checkbox1sate = dialogstate.get("CheckBox1sate")  # セルに追記、チェックボックス。キーがなければNoneが返る。	
-# 			checkbox2sate = dialogstate.get("CheckBox2sate")  # サイズ保存、チェックボックス。		
-# 			if checkbox1sate is not None:  # セルに追記、が保存されている時。
-# 				checkboxcontrol1.setState(checkbox1sate)  # 状態を復元。
-# 			if checkbox2sate is not None:  # サイズ保存、が保存されている時。
-# 				checkboxcontrol2.setState(checkbox1sate)  # 状態を復元。	
-# 				if checkbox1sate:  # サイズ保存されている時。
-# 					dialogwindow.setPosSize(0, 0, dialogstate["Width"], dialogstate["Height"], PosSize.SIZE)  # ウィンドウサイズを復元。
-# 		args = doc, gridselectionlistener, actionlistener, dialogwindow, windowlistener, mouselistener, menulistener, textlistener, controlcontainerwindowlistener, optioncontrolcontainerwindowlistener
-# 		dialogframe.addCloseListener(CloseListener(args))  # CloseListener。ノンモダルダイアログのリスナー削除用。	
-def recoverRows(gridcontrol, datarows):	
-	griddatamodel = gridcontrol.getModel().getPropertyValue("GridDataModel")  # GridDataModelを取得。	
-	griddatamodel.removeAllRows()  # グリッドコントロールの行を全削除。		
-	griddatamodel.addRows(("",)*len(datarows), datarows)  # グリッドに行を追加。
-class TextListener(unohelper.Base, XTextListener):
-	def __init__(self, xscriptcontext):
-		self.transliteration = fullwidth_halfwidth(xscriptcontext)
-		self.history = ""  # 前値を保存する。
-		self.flg = False  # 発火するかのフラグ。
-	def textChanged(self, textevent):  # 複数回呼ばれるので前値との比較が必要。
-		if self.flg:  # フラグが立っている時のみ。
-			editcontrol1 = textevent.Source
-			txt = editcontrol1.getText()
-			if txt!=self.history:  # 前値から変化する時のみ。
-				txt = self.transliteration.transliterate(txt, 0, len(txt), [])[0]  # 半角に変換
-				self.flg = False  # フラグを倒す。
-				editcontrol1.setText(txt)  # 永久ループになるのでTextListenerを発火しておかないといけない。
-				self.flg = True  # フラグを立てる。
-				recoverRows(editcontrol1.getContext().getControl("Grid1"), [i for i in DATAROWS if i[0].startswith(txt)])  # txtで始まっている行だけに絞る。txtが空文字の時はすべてTrueになる。
-				self.history = txt	
-	def disposing(self, eventobject):
-		pass
-def fullwidth_halfwidth(xscriptcontext):
-	ctx = xscriptcontext.getComponentContext()  # コンポーネントコンテクストの取得。
-	smgr = ctx.getServiceManager()  # サービスマネージャーの取得。					
-	transliteration = smgr.createInstanceWithContext("com.sun.star.i18n.Transliteration", ctx)  # Transliteration。		
-	transliteration.loadModuleNew((FULLWIDTH_HALFWIDTH,), Locale(Language = "ja", Country = "JP"))  # 全角を半角に変換するモジュール。
-	return transliteration
+		dialogwindow.setVisible(True) # ウィンドウの表示	
+		windowlistener = WindowListener(controlcontainer)
+		dialogwindow.addWindowListener(windowlistener) # setVisible(True)でも呼び出されるので、その後でリスナーを追加する。		
+		args = doc, controlcontainer, dialogwindow, windowlistener, mouselistener, menulistener
+		dialogframe.addCloseListener(CloseListener(args))  # CloseListener。ノンモダルダイアログのリスナー削除用。	
+		scrollDown(gridcontrol1)
 class CloseListener(unohelper.Base, XCloseListener):  # ノンモダルダイアログのリスナー削除用。
 	def __init__(self, args):
 		self.args = args
 	def queryClosing(self, eventobject, getsownership):  # ノンモダルダイアログを閉じる時に発火。
 		dialogframe = eventobject.Source
-		doc, gridselectionlistener, actionlistener, dialogwindow, windowlistener, mouselistener, menulistener, textlistener, controlcontainerwindowlistener, optioncontrolcontainerwindowlistener = self.args
-		controlcontainer, optioncontrolcontainer = windowlistener.args
-		dialogwindowsize = dialogwindow.getSize()		
-		dialogstate = {"CheckBox1sate": optioncontrolcontainer.getControl("CheckBox1").getState(),\
-					"CheckBox2sate": optioncontrolcontainer.getControl("CheckBox2").getState(),\
-					"Width": dialogwindowsize.Width,\
-					"Height": dialogwindowsize.Height}  # チェックボックスコントロールの状態とコンテナウィンドウの大きさを取得。
-		dialogtitle = dialogframe.getTitle()  # コンテナウィンドウタイトルを取得。データ保存のIDに使う。
-		saveData(doc, "dialogstate_{}".format(dialogtitle), dialogstate)  # ダイアログの状態を保存。
+		doc, controlcontainer, dialogwindow, windowlistener, mouselistener, menulistener = self.args
+
+		
+		
+		size = controlcontainer.getSize()
+		dialogstate = {"append": 0,\
+					"Width": size.Width,\
+					"Height": size.Height}  # チェックボックスの状態と大きさを取得。
+		dialogtitle = dialogframe.getTitle()
+		saveData(doc, "dialogstate_{}".format(dialogtitle), dialogstate)
 		gridcontrol1 = controlcontainer.getControl("Grid1")
-		saveData(doc, "GridDatarows_{}".format(dialogtitle), DATAROWS)  # ダイアログのグリッドコントロールの行を保存。
+		saveData(doc, "GridDatarows_{}".format(dialogtitle), DATAROWS)
 		mouselistener.gridpopupmenu.removeMenuListener(menulistener)
-		gridcontrol1.removeSelectionListener(gridselectionlistener)
 		gridcontrol1.removeMouseListener(mouselistener)
-		[controlcontainer.getControl(i).removeActionListener(actionlistener) for i in ("Button1", "Button2", "Button3", "Button4")]
-		controlcontainer.getControl("Edit1").removeTextListener(textlistener)
-		controlcontainer.removeWindowListener(controlcontainerwindowlistener)
-		optioncontrolcontainer.removeWindowListener(optioncontrolcontainerwindowlistener)
 		dialogwindow.removeWindowListener(windowlistener)
 		eventobject.Source.removeCloseListener(self)
 	def notifyClosing(self, eventobject):
 		pass
 	def disposing(self, eventobject):  
-		pass
-class ActionListener(unohelper.Base, XActionListener):
-	def __init__(self, xscriptcontext):
-		self.xscriptcontext = xscriptcontext
-		self.transliteration = fullwidth_halfwidth(xscriptcontext)
-	def actionPerformed(self, actionevent):
-		cmd = actionevent.ActionCommand
-		if cmd=="enter":
-			doc = self.xscriptcontext.getDocument()  
-			controller = doc.getCurrentController()  # 現在のコントローラを取得。			
-			selection = controller.getSelection()
-			if selection.supportsService("com.sun.star.sheet.SheetCell"):  # 選択オブジェクトがセルの時。
-				controlcontainer = actionevent.Source.getContext()
-				edit1 = controlcontainer.getControl("Edit1")  # テキストボックスコントロールを取得。
-				txt = edit1.getText()  # テキストボックスコントロールの文字列を取得。
-				if txt:  # テキストボックスコントロールに文字列がある時。
-					txt = self.transliteration.transliterate(txt, 0, len(txt), [])[0]  # 半角に変換
-					datarows = DATAROWS
-					if datarows:  # すでにグリッドコントロールにデータがある時。
-						lastindex = len(datarows) - 1  # 最終インデックスを取得。
-						[datarows.pop(lastindex-i) for i, datarow in enumerate(reversed(datarows)) if txt in datarow]  # txtがある行は後ろから削除する。
-					datarows.append((txt,))  # txtの行を追加。
-					gridcontrol1 = controlcontainer.getControl("Grid1")
-					recoverRows(gridcontrol1, datarows)
-					selection.setString(txt)  # 選択セルに代入。
-					global DATAROWS
-					DATAROWS = datarows					
-				sheet = controller.getActiveSheet()
-				celladdress = selection.getCellAddress()
-				nextcell = sheet[celladdress.Row+1, celladdress.Column]  # 下のセルを取得。
-				controller.select(nextcell)  # 下のセルを選択。
-				nexttxt = nextcell.getString()  # 下のセルの文字列を取得。
-				edit1.setText(nexttxt)  # テキストボックスコントロールにセルの内容を取得。
-				edit1.setFocus()  # テキストボックスコントロールをフォーカスする。
-				textlength = len(nexttxt)  # テキストボックスコントロール内の文字列の文字数を取得。
-				edit1selection = Selection(Min=textlength, Max=textlength)  # カーソルの位置を最後にする。指定しないと先頭になる。
-				edit1.setSelection(edit1selection)  # テクストボックスコントロールのカーソルの位置を変更。ピア作成後でないと反映されない。
-	def disposing(self, eventobject):
 		pass
 def saveData(doc, rangename, obj):	# configシートの名前rangenameにobjをJSONにして保存する。グローバル変数SHEETNAMEを使用。
 	namedranges = doc.getPropertyValue("NamedRanges")  # ドキュメントのNamedRangesを取得。
@@ -283,8 +171,9 @@ class MouseListener(unohelper.Base, XMouseListener):
 	def disposing(self, eventobject):
 		pass
 class MenuListener(unohelper.Base, XMenuListener):
-	def __init__(self, controlcontainer):
+	def __init__(self, controlcontainer, datarows):
 		self.controlcontainer = controlcontainer
+		self.datarows = datarows
 	def itemHighlighted(self, menuevent):
 		pass
 	def itemSelected(self, menuevent):  # PopupMenuの項目がクリックされた時。どこのコントロールのメニューかを知る方法はない。
@@ -294,25 +183,25 @@ class MenuListener(unohelper.Base, XMenuListener):
 		peer = controlcontainer.getPeer()  # ピアを取得。	
 		gridcontrol = controlcontainer.getControl("Grid1")  # グリッドコントロールを取得。
 		griddatamodel = gridcontrol.getModel().getPropertyValue("GridDataModel")  # GridDataModelを取得。					
-# 		if cmd=="delete":  # 選択行を削除する。  
-# 			msg = "選択行を削除しますか?"
-# 			msgbox = peer.getToolkit().createMessageBox(peer, QUERYBOX, MessageBoxButtons.BUTTONS_YES_NO, SHEETNAME, msg)
-# 			if msgbox.execute()==MessageBoxResults.YES:		
-# 				selectedrows = gridcontrol.getSelectedRows() if griddatamodel.RowCount>1 else (0,)  # 選択行インデックスのタプルを取得。1行だけの時はgetSelectedRows()で取得できない。
-# 				for i in reversed(selectedrows):  # 選択した行インデックスを後ろから取得。逐次検索のときはグリッドコントロールとDATAROWSが一致しないので別に処理する。
-# 					datarows.remove(griddatamodel.getRowData(i))  # 削除するデータ行と一致する要素をDATAROWSから削除。
-# 					griddatamodel.removeRow(i)  # グリッドコントロールから選択行を削除。
-# 		elif cmd=="deleteall":  # 全行を削除する。  	
-# 			msg = "すべての行を削除しますか?"
-# 			msgbox = peer.getToolkit().createMessageBox(peer, QUERYBOX, MessageBoxButtons.BUTTONS_YES_NO, SHEETNAME, msg)
-# 			if msgbox.execute()==MessageBoxResults.YES:		
-# 				msg = "本当にすべての行を削除しますか？\n削除したデータは取り戻せません。"
-# 				msgbox = peer.getToolkit().createMessageBox(peer, QUERYBOX, MessageBoxButtons.BUTTONS_YES_NO, SHEETNAME, msg)				
-# 				if msgbox.execute()==MessageBoxResults.YES:				
-# 					griddatamodel.removeAllRows()  # グリッドコントロールの行を全削除。
-# 					datarows.clear()  # 全データ行をクリア。	
-# 		global DATAROWS
-# 		DATAROWS = datarows			
+		if cmd=="delete":  # 選択行を削除する。  
+			msg = "選択行を削除しますか?"
+			msgbox = peer.getToolkit().createMessageBox(peer, QUERYBOX, MessageBoxButtons.BUTTONS_YES_NO, SHEETNAME, msg)
+			if msgbox.execute()==MessageBoxResults.YES:		
+				selectedrows = gridcontrol.getSelectedRows() if griddatamodel.RowCount>1 else (0,)  # 選択行インデックスのタプルを取得。1行だけの時はgetSelectedRows()で取得できない。
+				for i in reversed(selectedrows):  # 選択した行インデックスを後ろから取得。逐次検索のときはグリッドコントロールとDATAROWSが一致しないので別に処理する。
+					datarows.remove(griddatamodel.getRowData(i))  # 削除するデータ行と一致する要素をDATAROWSから削除。
+					griddatamodel.removeRow(i)  # グリッドコントロールから選択行を削除。
+		elif cmd=="deleteall":  # 全行を削除する。  	
+			msg = "すべての行を削除しますか?"
+			msgbox = peer.getToolkit().createMessageBox(peer, QUERYBOX, MessageBoxButtons.BUTTONS_YES_NO, SHEETNAME, msg)
+			if msgbox.execute()==MessageBoxResults.YES:		
+				msg = "本当にすべての行を削除しますか？\n削除したデータは取り戻せません。"
+				msgbox = peer.getToolkit().createMessageBox(peer, QUERYBOX, MessageBoxButtons.BUTTONS_YES_NO, SHEETNAME, msg)				
+				if msgbox.execute()==MessageBoxResults.YES:				
+					griddatamodel.removeAllRows()  # グリッドコントロールの行を全削除。
+					datarows.clear()  # 全データ行をクリア。	
+		global DATAROWS
+		DATAROWS = datarows			
 	def itemActivated(self, menuevent):
 		pass
 	def itemDeactivated(self, menuevent):
@@ -326,51 +215,32 @@ class FrameActionListener(unohelper.Base, XFrameActionListener):
 			frameactionevent.Frame.close(True)
 	def disposing(self, eventobject):
 		pass
-class GridSelectionListener(unohelper.Base, XGridSelectionListener):
-	def selectionChanged(self, gridselectionevent):  # 行を追加した時も発火する。
-		gridcontrol = gridselectionevent.Source
-		selectedrowindexes = gridselectionevent.SelectedRowIndexes  # 行がないグリッドコントロールに行が追加されたときは負の値が入ってくる。
-		if selectedrowindexes:  # 選択行がある時。
-			griddatamodel = gridcontrol.getModel().getPropertyValue("GridDataModel")
-			rowdata = griddatamodel.getRowData(selectedrowindexes[0])  # 選択行の最初の行のデータを取得。
-			gridcontrol.getContext().getControl("Edit1").setText(rowdata[0])  # テキストボックスに選択行の初行の文字列を代入。
-			if griddatamodel.RowCount==1:  # 1行しかない時はまた発火できるように選択を外す。
-				gridcontrol.deselectRow(0)  # 選択行の選択を外す。選択していない行を指定すると永遠ループになる。
-	def disposing(self, eventobject):
-		pass
+def resizeControls(controlcontainer, oldwidth, oldheight, newwidth, newheight):	 # ウィンドウの大きさの変更に合わせてコントロールの位置と大きさを変更。ウィンドウの大きさはここで変更するとコントロールが正しく移動できない。
+	gridcontrol1 = controlcontainer.getControl("Grid1")
+	gridcontrol1rect = gridcontrol1.getPosSize()
+	m = gridcontrol1rect.X  # コントロール間の間隔をチェックボックスのPositionXから取得。
+	minwidth = minheight = m*3  # 幅下限、高さ下限、を取得。
+	if newwidth<minwidth:  # 変更後のコントロールコンテナの幅を取得。サイズ下限より小さい時は下限値とする。
+		newwidth = minwidth
+	if newheight<minheight:  # 変更後のコントロールコンテナの高さを取得。サイズ下限より小さい時は下限値とする。
+		newheight = minheight
+	diff_width = newwidth - oldwidth  # 幅変化分
+	diff_height = newheight - oldheight  # 高さ変化分		
+	applyDiff = createApplyDiff(diff_width, diff_height)  # コントロールの位置と大きさを変更する関数を取得。
+	controlcontainer.setPosSize(0, 0, newwidth, newheight, PosSize.SIZE)  # コントロールコンテナの大きさを変更する。
+	applyDiff(gridcontrol1, PosSize.SIZE)	
+	return newwidth, newheight  # 下限制限後のウィンドウサイズを返す。
 class WindowListener(unohelper.Base, XWindowListener):
-	def __init__(self, *args):
-		self.args = args
-		self.option = False  # optioncontrolcontainerを表示しているかのフラグ。
-	def windowResized(self, windowevent):
-		controlcontainer, optioncontrolcontainer = self.args
-		if self.option:  # optioncontrolcontainerを表示している時。
-			newwidth, newheight = windowevent.Width, windowevent.Height
-			controlcontainerheight = newheight - optioncontrolcontainer.getSize().Height  # オプションコントロールコンテナの高さを除いた高さを取得。
-			optioncontrolcontainer.setPosSize(0, controlcontainerheight, newwidth, 0, PosSize.Y+PosSize.WIDTH)
-			controlcontainer.setPosSize(0, 0, newwidth, controlcontainerheight, PosSize.SIZE)
-		else:
-			controlcontainer.setPosSize(0, 0, windowevent.Width, windowevent.Height, PosSize.SIZE)
-	def windowMoved(self, windowevent):
-		pass
-	def windowShown(self, eventobject):
-		pass
-	def windowHidden(self, eventobject):
-		pass
-	def disposing(self, eventobject):
-		pass
-class ControlContainerWindowListener(unohelper.Base, XWindowListener):
 	def __init__(self, controlcontainer):
 		size = controlcontainer.getSize()
-		self.oldwidth, self.oldheight = size.Width, size.Height  # 次の変更前の値として取得。		
+		self.oldwidth = size.Width  # 次の変更前の幅として取得。
+		self.oldheight = size.Height  # 次の変更前の高さとして取得。		
 		self.controlcontainer = controlcontainer
 	def windowResized(self, windowevent):
-		newwidth, newheight = windowevent.Width, windowevent.Height
-		gridcontrol1 = self.controlcontainer.getControl("Grid1")
-		diff_width = newwidth - self.oldwidth  # 幅変化分
-		diff_height = newheight - self.oldheight  # 高さ変化分		
-		createApplyDiff(diff_width, diff_height)(gridcontrol1, PosSize.SIZE)  # コントロールの位置と大きさを変更		
-		self.oldwidth, self.oldheight = newwidth, newheight  # 次の変更前の値として取得。
+		newwidth, newheight = resizeControls(self.controlcontainer, self.oldwidth, self.oldheight, windowevent.Width, windowevent.Height)  # 変化分で計算する。コントロールが表示されないほど小さくされると次から表示がおかしくなる。
+		self.oldwidth = newwidth  # 次の変更前の幅として取得。
+		self.oldheight = newheight  # 次の変更前の高さとして取得。
+		scrollDown(self.controlcontainer.getControl("Grid1"))
 	def windowMoved(self, windowevent):
 		pass
 	def windowShown(self, eventobject):
@@ -384,42 +254,14 @@ def createApplyDiff(diff_width, diff_height):
 		rectangle = control.getPosSize()  # 変更前のコントロールの位置大きさを取得。
 		control.setPosSize(rectangle.X+diff_width, rectangle.Y+diff_height, rectangle.Width+diff_width, rectangle.Height+diff_height, possize)  # Flagsで変更する値のみ指定。変更しない値は0(でもなんでもよいはず)。
 	return applyDiff	
-class OptionControlContainerWindowListener(unohelper.Base, XWindowListener):
-	def __init__(self, controlcontainer):
-		size = controlcontainer.getSize()
-		self.oldwidth, self.oldheight = size.Width, size.Height  # 次の変更前の値として取得。		
-		self.controlcontainer = controlcontainer
-	def windowResized(self, windowevent): # ウィンドウの大きさの変更に合わせてコントロールの位置と大きさを変更。
-		controlcontainer = self.controlcontainer
-		newwidth, newheight = windowevent.Width, windowevent.Height
-		checkboxcontrol1 = controlcontainer.getControl("CheckBox1")
-		buttoncontrol1 = controlcontainer.getControl("Button1")
-		buttoncontrol3 = controlcontainer.getControl("Button3")
-		checkbox1rect = checkboxcontrol1.getPosSize()  # hをHeightから取得。
-		minwidth = checkbox1rect.Width + buttoncontrol1.getPosSize().Width + buttoncontrol3.getPosSize().Width + checkbox1rect.X*3
-		minheight = checkbox1rect.Height*2 + checkbox1rect.Y*3
-		if newwidth<minwidth:  # 変更後のコントロールコンテナの幅を取得。サイズ下限より小さい時は下限値とする。
-			newwidth = minwidth
-		if newheight<minheight:  # 変更後のコントロールコンテナの高さを取得。サイズ下限より小さい時は下限値とする。
-			newheight = minheight
-		diff_width = newwidth - self.oldwidth  # 幅変化分
-		diff_height = newheight - self.oldheight  # 高さ変化分		
-		applyDiff = createApplyDiff(diff_width, diff_height)  # コントロールの位置と大きさを変更する関数を取得。
-		applyDiff(controlcontainer.getControl("Edit1"), PosSize.Y+PosSize.WIDTH)
-		applyDiff(checkboxcontrol1, PosSize.Y)
-		applyDiff(controlcontainer.getControl("CheckBox2"), PosSize.Y)
-		applyDiff(buttoncontrol1, PosSize.POS)		
-		applyDiff(controlcontainer.getControl("Button2"), PosSize.POS)
-		applyDiff(buttoncontrol3, PosSize.POS)
-		self.oldwidth, self.oldheight = newwidth, newheight  # 次の変更前の値として取得。
-	def windowMoved(self, windowevent):
-		pass
-	def windowShown(self, eventobject):
-		pass
-	def windowHidden(self, eventobject):
-		pass
-	def disposing(self, eventobject):
-		pass
+def scrollDown(gridcontrol):  # グリッドコントロールを下までスクロールする。		
+	accessiblecontext = gridcontrol.getAccessibleContext()  # グリッドコントロールのAccessibleContextを取得。
+	for i in range(accessiblecontext.getAccessibleChildCount()):  # 子要素をのインデックスを走査する。
+		child = accessiblecontext.getAccessibleChild(i)  # 子要素を取得。
+		if child.getAccessibleContext().getAccessibleRole()==AccessibleRole.SCROLL_BAR:  # スクロールバーの時。
+			if child.getOrientation()==ScrollBarOrientation.VERTICAL:  # 縦スクロールバーの時。
+				child.setValue(child.getMaximum())  # 最大値にスクロールさせる。
+				break				
 def XWidth(props, m=0):  # 左隣のコントロールからPositionXを取得。mは間隔。
 	return props["PositionX"] + props["Width"] + m  	
 def YHeight(props, m=0):  # 上隣のコントロールからPositionYを取得。mは間隔。
