@@ -32,7 +32,7 @@ def createDialog(xscriptcontext, enhancedmouseevent, dialogtitle, defaultrows=No
 		textboxprops = {"PositionX": m, "PositionY": YHeight(gridprops, 2), "Height": h, "Text": doc.getCurrentSelection().getString()}  # テクストボックスコントロールのプロパティ。
 		checkboxprops = {"PositionY": YHeight(textboxprops, 4), "Height": h, "Tabstop": False}  # チェックボックスコントロールのプロパティ。
 		checkboxprops1, checkboxprops2 = [checkboxprops.copy() for dummy in range(2)]
-		checkboxprops1.update({"PositionX": m, "Width": 42, "Label": "~サイズ保存", "State": 1})  # サイズ保村はデフォルトでは有効。
+		checkboxprops1.update({"PositionX": m, "Width": 42, "Label": "~サイズ復元", "State": 1})  # サイズ復元はデフォルトでは有効。
 		checkboxprops2.update({"PositionX": XWidth(checkboxprops1), "Width": 38, "Label": "~逐次検索", "State": 0})  # 逐次検索はデフォルトでは無効。
 		buttonprops = {"PositionX": XWidth(checkboxprops2, m), "PositionY": YHeight(textboxprops, 4), "Width": 30, "Height": h+2, "Label": "Enter"}  # ボタンのプロパティ。PushButtonTypeの値はEnumではエラーになる。VerticalAlignではtextboxと高さが揃わない。
 		gridprops["Width"] = textboxprops["Width"] = XWidth(buttonprops, -m)
@@ -79,9 +79,9 @@ def createDialog(xscriptcontext, enhancedmouseevent, dialogtitle, defaultrows=No
 		dialogwindow.addWindowListener(windowlistener) # setVisible(True)でも呼び出されるので、その後でリスナーを追加する。		
 		dialogstate = getSavedData(doc, "dialogstate_{}".format(dialogtitle))  # 保存データを取得。
 		if dialogstate is not None:  # 保存してあるダイアログの状態がある時。
-			checkbox1sate = dialogstate.get("CheckBox1sate")  # サイズ保存、チェックボックス。キーがなければNoneが返る。	
-			if checkbox1sate is not None:  # サイズ保存、が保存されている時。
-				if checkbox1sate:  # サイズ保存されている時。
+			checkbox1sate = dialogstate.get("CheckBox1sate")  # サイズ復元、チェックボックス。キーがなければNoneが返る。	
+			if checkbox1sate is not None:  # サイズ復元、が保存されている時。
+				if checkbox1sate:  # サイズ復元されている時。
 					dialogwindow.setPosSize(0, 0, dialogstate["Width"], dialogstate["Height"], PosSize.SIZE)  # ウィンドウサイズを復元。
 				checkboxcontrol1.setState(checkbox1sate)  # 状態を復元。	
 			checkbox2sate = dialogstate.get("CheckBox2sate")  # 逐語検索、チェックボックス。			
@@ -240,6 +240,7 @@ def getSavedData(doc, rangename):  # configシートのragenameからデータ�
 class MouseListener(unohelper.Base, XMouseListener):  
 	def __init__(self, xscriptcontext): 	
 		self.xscriptcontext = xscriptcontext
+		self.gridpopupmenu = None
 	def mousePressed(self, mouseevent):  # グリッドコントロールをクリックした時。コントロールモデルにはNameプロパティはない。
 		gridcontrol = mouseevent.Source  # グリッドコントロールを取得。
 		if mouseevent.Buttons==MouseButton.LEFT and mouseevent.ClickCount==2:  # ダブルクリックの時。

@@ -1,153 +1,117 @@
 #!/opt/libreoffice5.4/program/python
 # -*- coding: utf-8 -*-
 import unohelper, json  # import pydevd; pydevd.settrace(stdoutToServer=True, stderrToServer=True)
-from com.sun.star.accessibility import AccessibleRole  # 定数
-from com.sun.star.awt import XActionListener, XMenuListener, XMouseListener, XWindowListener, XTextListener, XItemListener
-from com.sun.star.awt import MessageBoxButtons, MessageBoxResults, MouseButton, PopupMenuDirection, PosSize, ScrollBarOrientation  # 定数
-from com.sun.star.awt import Point, Rectangle, Selection  # Struct
+from com.sun.star.awt import XActionListener, XMenuListener, XMouseListener, XWindowListener
+from com.sun.star.awt import MenuItemStyle, MessageBoxButtons, MessageBoxResults, MouseButton, PopupMenuDirection, PosSize  # 定数
+from com.sun.star.awt import MenuEvent, Point, Rectangle, Selection  # Struct
 from com.sun.star.awt.MessageBoxType import QUERYBOX  # enum
 from com.sun.star.awt.grid import XGridSelectionListener
 from com.sun.star.beans import NamedValue  # Struct
 from com.sun.star.frame import XFrameActionListener
 from com.sun.star.frame.FrameAction import FRAME_UI_DEACTIVATING  # enum
-from com.sun.star.i18n.TransliterationModulesNew import FULLWIDTH_HALFWIDTH  # enum
 from com.sun.star.util import XCloseListener
 from com.sun.star.util import MeasureUnit  # 定数
 from com.sun.star.view.SelectionType import MULTI  # enum 
-from com.sun.star.lang import Locale  # Struct
-from com.sun.star.awt import MenuItemStyle  # 定数
-from com.sun.star.awt import MenuEvent  # Struct
 SHEETNAME = "config"  # データを保存するシート名。
-DATAROWS = []  # グリッドコントロールのデータ行。複数クラスからアクセスするのでグローバルにしないといけない。
 def createDialog(xscriptcontext, enhancedmouseevent, dialogtitle, defaultrows=None):  # dialogtitleはダイアログのデータ保存名に使うのでユニークでないといけない。defaultrowsはグリッドコントロールのデフォルトデータ。
 	ctx = xscriptcontext.getComponentContext()  # コンポーネントコンテクストの取得。
 	smgr = ctx.getServiceManager()  # サービスマネージャーの取得。	
 	doc = xscriptcontext.getDocument()  # マクロを起動した時のドキュメントのモデルを取得。   
 	dialogpoint = getDialogPoint(doc, enhancedmouseevent)  # クリックした位置のメニューバーの高さ分下の位置を取得。単位ピクセル。一部しか表示されていないセルのときはNoneが返る。
-	if dialogpoint:  # クリックした位置が取得出来た時。
-		docframe = doc.getCurrentController().getFrame()  # モデル→コントローラ→フレーム、でドキュメントのフレームを取得。
-		containerwindow = docframe.getContainerWindow()  # ドキュメントのウィンドウ(コンテナウィンドウ=ピア)を取得。
-		maTopx = createConverters(containerwindow)  # ma単位をピクセルに変換する関数を取得。
-		m = 2  # コントロール間の間隔。
-		h = 12  # コントロールの高さ
-		gridprops = {"PositionX": 0, "PositionY": 0, "Width": 50, "Height": 50, "ShowRowHeader": False, "ShowColumnHeader": False, "SelectionModel": MULTI}  # グリッドコントロールのプロパティ。
-		controlcontainerprops = {"PositionX": 0, "PositionY": 0, "Width": XWidth(gridprops), "Height": YHeight(gridprops), "BackgroundColor": 0xF0F0F0}  # コントロールコンテナの基本プロパティ。幅は右端のコントロールから取得。高さはコントロール追加後に最後に設定し直す。		
-		controlcontainer, addControl = controlcontainerMaCreator(ctx, smgr, maTopx, controlcontainerprops)  # コントロールコンテナの作成。		
-		gridselectionlistener = GridSelectionListener()
-		mouselistener = MouseListener(xscriptcontext)
-		menulistener = MenuListener()  # コンテクストメニューにつけるリスナー。
-		items = ("オプション表示", MenuItemStyle.CHECKABLE+MenuItemStyle.AUTOCHECK, {"checkItem": False}),
-		mouselistener.gridpopupmenu = menuCreator(ctx, smgr)("PopupMenu", items, {"addMenuListener": menulistener})  # 右クリックでまず呼び出すポップアップメニュー。 
-		gridcontrol1 = addControl("Grid", gridprops, {"addMouseListener": mouselistener, "addSelectionListener": gridselectionlistener})  # グリッドコントロールの取得。
-		gridmodel = gridcontrol1.getModel()  # グリッドコントロールモデルの取得。
-		gridcolumn = gridmodel.getPropertyValue("ColumnModel")  # DefaultGridColumnModel
-		gridcolumn.addColumn(gridcolumn.createColumn())  # 列を追加。
-		griddatamodel = gridmodel.getPropertyValue("GridDataModel")  # GridDataModel
-		datarows = getSavedData(doc, "GridDatarows_{}".format(dialogtitle))  # グリッドコントロールの行をconfigシートのragenameから取得する。	
-		if datarows is None and defaultrows is not None:  # 履歴がなくデフォルトdatarowsがあるときデフォルトデータを使用。
-			datarows = [i if isinstance(i, (list, tuple)) else (i,) for i in defaultrows]  # defaultrowsの要素をリストかタプルでなければタプルに変換する。
-		if datarows:  # 行のリストが取得出来た時。
-			griddatamodel.addRows(("",)*len(datarows), datarows)  # グリッドに行を追加。
-			global DATAROWS
-			DATAROWS = datarows		
-		controlcontainerwindowlistener = ControlContainerWindowListener(controlcontainer)		
-		controlcontainer.addWindowListener(controlcontainerwindowlistener)  # コントロールコンテナの大きさを変更するとグリッドコントロールの大きさも変更するようにする。
-		textboxprops = {"PositionX": 0, "PositionY": m, "Height": h}  # テクストボックスコントロールのプロパティ。
-		checkboxprops1 = {"PositionX": 0, "PositionY": YHeight(textboxprops, m), "Width": 46, "Height": h, "Label": "~セルに追記", "State": 0} # セルに追記はデフォルトでは無効。
-		buttonprops1 = {"PositionX": XWidth(checkboxprops1), "PositionY": YHeight(textboxprops, m), "Width": 18, "Height": h+2, "Label": "上へ"}  # ボタンのプロパティ。PushButtonTypeの値はEnumではエラーになる。VerticalAlignではtextboxと高さが揃わない。
-		buttonprops3 = {"PositionX": XWidth(buttonprops1, 2), "PositionY": YHeight(textboxprops, m), "Width": 26, "Height": h+2, "Label": "行挿入"}
-		checkboxprops2 = {"PositionX": 0, "PositionY": YHeight(checkboxprops1, 4), "Width": 46, "Height": h, "Label": "~サイズ保存", "State": 1}  # サイズ保存はデフォルトでは有効。		
-		buttonprops2 = {"PositionX": XWidth(checkboxprops1), "PositionY": YHeight(buttonprops1, m*2), "Width": 18, "Height": h+2, "Label": "下へ"}
-		buttonprops4 = {"PositionX": XWidth(buttonprops1, m), "PositionY": YHeight(buttonprops1, m*2), "Width": 26, "Height": h+2, "Label": "行削除"}
-		textboxprops.update({"Width": XWidth(buttonprops3, m)})  # 右端のコントロールから左の余白mを除いた幅を取得。
-		optioncontrolcontainerprops = {"PositionX": 0, "PositionY": 0, "Width": XWidth(textboxprops), "Height": YHeight(buttonprops2, 2), "BackgroundColor": 0xF0F0F0}  # コントロールコンテナの基本プロパティ。幅は右端のコントロールから取得。高さはコントロール追加後に最後に設定し直す。		
-		optioncontrolcontainer, optionaddControl = controlcontainerMaCreator(ctx, smgr, maTopx, optioncontrolcontainerprops)  # コントロールコンテナの作成。		
-		textlistener = TextListener(xscriptcontext)	
-		optionaddControl("Edit", textboxprops, {"addTextListener": textlistener})  
-		checkboxcontrol1 = optionaddControl("CheckBox", checkboxprops1)  
-		checkboxcontrol2 = optionaddControl("CheckBox", checkboxprops2)  
-		actionlistener = ActionListener(xscriptcontext)  # ボタンコントロールにつけるリスナー。
-		optionaddControl("Button", buttonprops1, {"addActionListener": actionlistener, "setActionCommand": "up"})  
-		optionaddControl("Button", buttonprops2, {"addActionListener": actionlistener, "setActionCommand": "down"})  
-		optionaddControl("Button", buttonprops3, {"addActionListener": actionlistener, "setActionCommand": "insert"})  
-		optionaddControl("Button", buttonprops4, {"addActionListener": actionlistener, "setActionCommand": "delete"})  
-		optioncontrolcontainerwindowlistener = OptionControlContainerWindowListener(optioncontrolcontainer)		
-		optioncontrolcontainer.addWindowListener(optioncontrolcontainerwindowlistener)  # コントロールコンテナの大きさを変更するとグリッドコントロールの大きさも変更するようにする。
-		rectangle = controlcontainer.getPosSize()  # コントロールコンテナのRectangle Structを取得。px単位。
-		rectangle.X, rectangle.Y = dialogpoint  # クリックした位置を取得。ウィンドウタイトルを含めない座標。
-		taskcreator = smgr.createInstanceWithContext('com.sun.star.frame.TaskCreator', ctx)
-		args = NamedValue("PosSize", rectangle), NamedValue("FrameName", "controldialog")  # , NamedValue("MakeVisible", True)  # TaskCreatorで作成するフレームのコンテナウィンドウのプロパティ。
-		dialogframe = taskcreator.createInstanceWithArguments(args)  # コンテナウィンドウ付きの新しいフレームの取得。
-		dialogwindow = dialogframe.getContainerWindow()  # ダイアログのコンテナウィンドウを取得。
-		dialogframe.setTitle(dialogtitle)  # フレームのタイトルを設定。
-		docframe.getFrames().append(dialogframe) # 新しく作ったフレームを既存のフレームの階層に追加する。
-		toolkit = dialogwindow.getToolkit()  # ピアからツールキットを取得。 	
-		controlcontainer.createPeer(toolkit, dialogwindow) # ウィンドウにコントロールコンテナを描画。
-		optioncontrolcontainer.createPeer(toolkit, dialogwindow) # ウィンドウにオプションコントロールコンテナを描画。Visibleにはしない。
-		frameactionlistener = FrameActionListener()  # FrameActionListener。フレームがアクティブでなくなった時に閉じるため。
-		dialogframe.addFrameActionListener(frameactionlistener)  # FrameActionListenerをダイアログフレームに追加。
-		controlcontainer.setVisible(True)  # コントロールの表示。
-		dialogwindow.setVisible(True) # ウィンドウの表示。これ以降WindowListenerが発火する。
-		windowlistener = WindowListener(controlcontainer, optioncontrolcontainer) # コンテナウィンドウからコントロールコンテナを取得する方法はないはずなので、ここで渡す。WindowListenerはsetVisible(True)で呼び出される。
-		dialogwindow.addWindowListener(windowlistener) # コンテナウィンドウにリスナーを追加する。
-		menulistener.args = dialogwindow, windowlistener
-		dialogstate = getSavedData(doc, "dialogstate_{}".format(dialogtitle))  # 保存データを取得。optioncontrolcontainerの表示状態は常にFalseなので保存されていない。
-		if dialogstate is not None:  # 保存してあるダイアログの状態がある時。
-			optioncheck = dialogstate.get("OptionCheck")  # オプション表示のチェックがある時。
-			if optioncheck is not None:
-				menuid = 1
-				mouselistener.gridpopupmenu.checkItem(menuid, optioncheck)  # ItemIDは1から始まる。これでMenuListenerは発火しない。
-				if optioncheck:  # MenuListenerを発火させる。
-					
-# 					import pydevd; pydevd.settrace(stdoutToServer=True, stderrToServer=True)
-					
-					menulistener.itemSelected(MenuEvent(MenuId=menuid, Source=mouselistener.gridpopupmenu))
-				
-				
-			checkbox1sate = dialogstate.get("CheckBox1sate")  # セルに追記、チェックボックス。キーがなければNoneが返る。	
-			if checkbox1sate is not None:  # セルに追記、が保存されている時。
-				checkboxcontrol1.setState(checkbox1sate)  # 状態を復元。
-			checkbox2sate = dialogstate.get("CheckBox2sate")  # サイズ保存、チェックボックス。	
-			if checkbox2sate is not None:  # サイズ保存、が保存されている時。
-				checkboxcontrol2.setState(checkbox2sate)  # 状態を復元。	
-				if checkbox2sate:  # サイズ保存されている時。
-					dialogwindow.setPosSize(0, 0, dialogstate["Width"], dialogstate["Height"], PosSize.SIZE)  # ウィンドウサイズを復元。WindowListenerが発火する。
-		args = doc, gridselectionlistener, actionlistener, dialogwindow, windowlistener, mouselistener, menulistener, textlistener, controlcontainerwindowlistener, optioncontrolcontainerwindowlistener
-		dialogframe.addCloseListener(CloseListener(args))  # CloseListener。ノンモダルダイアログのリスナー削除用。	
+	if not dialogpoint:  # クリックした位置が取得出来なかった時は何もしない。
+		return
+	docframe = doc.getCurrentController().getFrame()  # モデル→コントローラ→フレーム、でドキュメントのフレームを取得。
+	containerwindow = docframe.getContainerWindow()  # ドキュメントのウィンドウ(コンテナウィンドウ=ピア)を取得。
+	maTopx = createConverters(containerwindow)  # ma単位をピクセルに変換する関数を取得。
+	m = 2  # コントロール間の間隔。
+	h = 12  # コントロールの高さ
+	gridprops = {"PositionX": 0, "PositionY": 0, "Width": 50, "Height": 50, "ShowRowHeader": False, "ShowColumnHeader": False, "SelectionModel": MULTI}  # グリッドコントロールのプロパティ。
+	controlcontainerprops = {"PositionX": 0, "PositionY": 0, "Width": XWidth(gridprops), "Height": YHeight(gridprops), "BackgroundColor": 0xF0F0F0}  # コントロールコンテナの基本プロパティ。幅は右端のコントロールから取得。高さはコントロール追加後に最後に設定し直す。		
+	controlcontainer, addControl = controlcontainerMaCreator(ctx, smgr, maTopx, controlcontainerprops)  # コントロールコンテナの作成。		
+	gridselectionlistener = GridSelectionListener()
+	mouselistener = MouseListener(xscriptcontext)
+	menulistener = MenuListener()  # コンテクストメニューにつけるリスナー。
+	items = ("オプション表示", MenuItemStyle.CHECKABLE+MenuItemStyle.AUTOCHECK, {"checkItem": False}),
+	mouselistener.gridpopupmenu = menuCreator(ctx, smgr)("PopupMenu", items, {"addMenuListener": menulistener})  # 右クリックでまず呼び出すポップアップメニュー。 
+	gridcontrol1 = addControl("Grid", gridprops, {"addMouseListener": mouselistener, "addSelectionListener": gridselectionlistener})  # グリッドコントロールの取得。
+	gridmodel = gridcontrol1.getModel()  # グリッドコントロールモデルの取得。
+	gridcolumn = gridmodel.getPropertyValue("ColumnModel")  # DefaultGridColumnModel
+	gridcolumn.addColumn(gridcolumn.createColumn())  # 列を追加。
+	griddatamodel = gridmodel.getPropertyValue("GridDataModel")  # GridDataModel
+	datarows = getSavedData(doc, "GridDatarows_{}".format(dialogtitle))  # グリッドコントロールの行をconfigシートのragenameから取得する。	
+	if datarows is None and defaultrows is not None:  # 履歴がなくデフォルトdatarowsがあるときデフォルトデータを使用。
+		datarows = [i if isinstance(i, (list, tuple)) else (i,) for i in defaultrows]  # defaultrowsの要素をリストかタプルでなければタプルに変換する。
+	if datarows:  # 行のリストが取得出来た時。
+		griddatamodel.addRows(("",)*len(datarows), datarows)  # グリッドに行を追加。	
+	controlcontainerwindowlistener = ControlContainerWindowListener(controlcontainer)		
+	controlcontainer.addWindowListener(controlcontainerwindowlistener)  # コントロールコンテナの大きさを変更するとグリッドコントロールの大きさも変更するようにする。
+	textboxprops = {"PositionX": 0, "PositionY": m, "Height": h}  # テクストボックスコントロールのプロパティ。
+	checkboxprops1 = {"PositionX": 0, "PositionY": YHeight(textboxprops, m), "Width": 46, "Height": h, "Label": "~セルに追記", "State": 0} # セルに追記はデフォルトでは無効。
+	buttonprops1 = {"PositionX": XWidth(checkboxprops1), "PositionY": YHeight(textboxprops, m), "Width": 18, "Height": h+2, "Label": "上へ"}  # ボタンのプロパティ。PushButtonTypeの値はEnumではエラーになる。VerticalAlignではtextboxと高さが揃わない。
+	buttonprops3 = {"PositionX": XWidth(buttonprops1, 2), "PositionY": YHeight(textboxprops, m), "Width": 26, "Height": h+2, "Label": "行挿入"}
+	checkboxprops2 = {"PositionX": 0, "PositionY": YHeight(checkboxprops1, 4), "Width": 46, "Height": h, "Label": "~サイズ復元", "State": 1}  # サイズ復元はデフォルトでは有効。		
+	buttonprops2 = {"PositionX": XWidth(checkboxprops1), "PositionY": YHeight(buttonprops1, m*2), "Width": 18, "Height": h+2, "Label": "下へ"}
+	buttonprops4 = {"PositionX": XWidth(buttonprops1, m), "PositionY": YHeight(buttonprops1, m*2), "Width": 26, "Height": h+2, "Label": "行削除"}
+	textboxprops.update({"Width": XWidth(buttonprops3, m)})  # 右端のコントロールから左の余白mを除いた幅を取得。
+	optioncontrolcontainerprops = {"PositionX": 0, "PositionY": 0, "Width": XWidth(textboxprops), "Height": YHeight(buttonprops2, 2), "BackgroundColor": 0xF0F0F0}  # コントロールコンテナの基本プロパティ。幅は右端のコントロールから取得。高さはコントロール追加後に最後に設定し直す。		
+	optioncontrolcontainer, optionaddControl = controlcontainerMaCreator(ctx, smgr, maTopx, optioncontrolcontainerprops)  # コントロールコンテナの作成。		
+	gridselectionlistener.editcontrol1 = optionaddControl("Edit", textboxprops)  
+	checkboxcontrol1 = optionaddControl("CheckBox", checkboxprops1)
+	mouselistener.checkboxcontrol1 = checkboxcontrol1
+	checkboxcontrol2 = optionaddControl("CheckBox", checkboxprops2)  
+	actionlistener = ActionListener(gridcontrol1, datarows)  # ボタンコントロールにつけるリスナー。
+	optionaddControl("Button", buttonprops1, {"addActionListener": actionlistener, "setActionCommand": "up"})  
+	optionaddControl("Button", buttonprops2, {"addActionListener": actionlistener, "setActionCommand": "down"})  
+	optionaddControl("Button", buttonprops3, {"addActionListener": actionlistener, "setActionCommand": "insert"})  
+	optionaddControl("Button", buttonprops4, {"addActionListener": actionlistener, "setActionCommand": "delete"})  
+	optioncontrolcontainerwindowlistener = OptionControlContainerWindowListener(optioncontrolcontainer)		
+	optioncontrolcontainer.addWindowListener(optioncontrolcontainerwindowlistener)  # コントロールコンテナの大きさを変更するとグリッドコントロールの大きさも変更するようにする。
+	rectangle = controlcontainer.getPosSize()  # コントロールコンテナのRectangle Structを取得。px単位。
+	rectangle.X, rectangle.Y = dialogpoint  # クリックした位置を取得。ウィンドウタイトルを含めない座標。
+	taskcreator = smgr.createInstanceWithContext('com.sun.star.frame.TaskCreator', ctx)
+	args = NamedValue("PosSize", rectangle), NamedValue("FrameName", "controldialog")  # , NamedValue("MakeVisible", True)  # TaskCreatorで作成するフレームのコンテナウィンドウのプロパティ。
+	dialogframe = taskcreator.createInstanceWithArguments(args)  # コンテナウィンドウ付きの新しいフレームの取得。
+	dialogwindow = dialogframe.getContainerWindow()  # ダイアログのコンテナウィンドウを取得。
+	dialogframe.setTitle(dialogtitle)  # フレームのタイトルを設定。
+	docframe.getFrames().append(dialogframe) # 新しく作ったフレームを既存のフレームの階層に追加する。
+	toolkit = dialogwindow.getToolkit()  # ピアからツールキットを取得。 	
+	controlcontainer.createPeer(toolkit, dialogwindow) # ウィンドウにコントロールコンテナを描画。
+	optioncontrolcontainer.createPeer(toolkit, dialogwindow) # ウィンドウにオプションコントロールコンテナを描画。Visibleにはしない。
+	frameactionlistener = FrameActionListener()  # FrameActionListener。フレームがアクティブでなくなった時に閉じるため。
+	dialogframe.addFrameActionListener(frameactionlistener)  # FrameActionListenerをダイアログフレームに追加。
+	controlcontainer.setVisible(True)  # コントロールの表示。
+	dialogwindow.setVisible(True) # ウィンドウの表示。これ以降WindowListenerが発火する。
+	windowlistener = WindowListener(controlcontainer, optioncontrolcontainer) # コンテナウィンドウからコントロールコンテナを取得する方法はないはずなので、ここで渡す。WindowListenerはsetVisible(True)で呼び出される。
+	dialogwindow.addWindowListener(windowlistener) # コンテナウィンドウにリスナーを追加する。
+	menulistener.args = dialogwindow, windowlistener
+	dialogstate = getSavedData(doc, "dialogstate_{}".format(dialogtitle))  # 保存データを取得。optioncontrolcontainerの表示状態は常にFalseなので保存されていない。
+	if dialogstate is not None:  # 保存してあるダイアログの状態がある時。
+		optioncheck = dialogstate.get("OptionCheck")  # オプション表示のチェックがある時。
+		if optioncheck is not None:
+			menuid = 1
+			mouselistener.gridpopupmenu.checkItem(menuid, optioncheck)  # ItemIDは1から始まる。これでMenuListenerは発火しない。
+			if optioncheck:  # チェックが付いている時MenuListenerを発火させる。
+				menulistener.itemSelected(MenuEvent(MenuId=menuid, Source=mouselistener.gridpopupmenu))
+		checkbox1sate = dialogstate.get("CheckBox1sate")  # セルに追記、チェックボックス。キーがなければNoneが返る。	
+		if checkbox1sate is not None:  # セルに追記、が保存されている時。
+			checkboxcontrol1.setState(checkbox1sate)  # 状態を復元。
+		checkbox2sate = dialogstate.get("CheckBox2sate")  # サイズ復元、チェックボックス。	
+		if checkbox2sate is not None:  # サイズ復元、が保存されている時。
+			checkboxcontrol2.setState(checkbox2sate)  # 状態を復元。	
+			if checkbox2sate:  # サイズ復元がチェックされている時。
+				dialogwindow.setPosSize(0, 0, dialogstate["Width"], dialogstate["Height"], PosSize.SIZE)  # ウィンドウサイズを復元。WindowListenerが発火する。
+	args = doc, gridselectionlistener, actionlistener, dialogwindow, windowlistener, mouselistener, menulistener, controlcontainerwindowlistener, optioncontrolcontainerwindowlistener
+	dialogframe.addCloseListener(CloseListener(args))  # CloseListener。ノンモダルダイアログのリスナー削除用。	
 def recoverRows(gridcontrol, datarows):	
 	griddatamodel = gridcontrol.getModel().getPropertyValue("GridDataModel")  # GridDataModelを取得。	
 	griddatamodel.removeAllRows()  # グリッドコントロールの行を全削除。		
 	griddatamodel.addRows(("",)*len(datarows), datarows)  # グリッドに行を追加。
-class TextListener(unohelper.Base, XTextListener):
-	def __init__(self, xscriptcontext):
-		self.transliteration = fullwidth_halfwidth(xscriptcontext)
-		self.history = ""  # 前値を保存する。
-		self.flg = False  # 発火するかのフラグ。
-	def textChanged(self, textevent):  # 複数回呼ばれるので前値との比較が必要。
-		if self.flg:  # フラグが立っている時のみ。
-			editcontrol1 = textevent.Source
-			txt = editcontrol1.getText()
-			if txt!=self.history:  # 前値から変化する時のみ。
-				txt = self.transliteration.transliterate(txt, 0, len(txt), [])[0]  # 半角に変換
-				self.flg = False  # フラグを倒す。
-				editcontrol1.setText(txt)  # 永久ループになるのでTextListenerを発火しておかないといけない。
-				self.flg = True  # フラグを立てる。
-				recoverRows(editcontrol1.getContext().getControl("Grid1"), [i for i in DATAROWS if i[0].startswith(txt)])  # txtで始まっている行だけに絞る。txtが空文字の時はすべてTrueになる。
-				self.history = txt	
-	def disposing(self, eventobject):
-		pass
-def fullwidth_halfwidth(xscriptcontext):
-	ctx = xscriptcontext.getComponentContext()  # コンポーネントコンテクストの取得。
-	smgr = ctx.getServiceManager()  # サービスマネージャーの取得。					
-	transliteration = smgr.createInstanceWithContext("com.sun.star.i18n.Transliteration", ctx)  # Transliteration。		
-	transliteration.loadModuleNew((FULLWIDTH_HALFWIDTH,), Locale(Language = "ja", Country = "JP"))  # 全角を半角に変換するモジュール。
-	return transliteration
 class CloseListener(unohelper.Base, XCloseListener):  # ノンモダルダイアログのリスナー削除用。
 	def __init__(self, args):
 		self.args = args
 	def queryClosing(self, eventobject, getsownership):  # ノンモダルダイアログを閉じる時に発火。
 		dialogframe = eventobject.Source
-		doc, gridselectionlistener, actionlistener, dialogwindow, windowlistener, mouselistener, menulistener, textlistener, controlcontainerwindowlistener, optioncontrolcontainerwindowlistener = self.args
+		doc, gridselectionlistener, actionlistener, dialogwindow, windowlistener, mouselistener, menulistener, controlcontainerwindowlistener, optioncontrolcontainerwindowlistener = self.args
 		controlcontainer, optioncontrolcontainer = windowlistener.args
 		dialogwindowsize = dialogwindow.getSize()		
 		dialogstate = {"OptionCheck": mouselistener.gridpopupmenu.isItemChecked(1),\
@@ -158,12 +122,11 @@ class CloseListener(unohelper.Base, XCloseListener):  # ノンモダルダイア
 		dialogtitle = dialogframe.getTitle()  # コンテナウィンドウタイトルを取得。データ保存のIDに使う。
 		saveData(doc, "dialogstate_{}".format(dialogtitle), dialogstate)  # ダイアログの状態を保存。
 		gridcontrol1 = controlcontainer.getControl("Grid1")
-		saveData(doc, "GridDatarows_{}".format(dialogtitle), DATAROWS)  # ダイアログのグリッドコントロールの行を保存。
+		saveData(doc, "GridDatarows_{}".format(dialogtitle), actionlistener.datarwos)  # ダイアログのグリッドコントロールの行を保存。
 		mouselistener.gridpopupmenu.removeMenuListener(menulistener)
 		gridcontrol1.removeSelectionListener(gridselectionlistener)
 		gridcontrol1.removeMouseListener(mouselistener)
 		[controlcontainer.getControl(i).removeActionListener(actionlistener) for i in ("Button1", "Button2", "Button3", "Button4")]
-		controlcontainer.getControl("Edit1").removeTextListener(textlistener)
 		controlcontainer.removeWindowListener(controlcontainerwindowlistener)
 		optioncontrolcontainer.removeWindowListener(optioncontrolcontainerwindowlistener)
 		dialogwindow.removeWindowListener(windowlistener)
@@ -173,41 +136,33 @@ class CloseListener(unohelper.Base, XCloseListener):  # ノンモダルダイア
 	def disposing(self, eventobject):  
 		pass
 class ActionListener(unohelper.Base, XActionListener):
-	def __init__(self, xscriptcontext):
-		self.xscriptcontext = xscriptcontext
-		self.transliteration = fullwidth_halfwidth(xscriptcontext)
+	def __init__(self, gridcontrol, datarows):
+		self.gridcontrol = gridcontrol
+		self.datarows = datarows
 	def actionPerformed(self, actionevent):
 		cmd = actionevent.ActionCommand
-		if cmd=="enter":
-			doc = self.xscriptcontext.getDocument()  
-			controller = doc.getCurrentController()  # 現在のコントローラを取得。			
-			selection = controller.getSelection()
-			if selection.supportsService("com.sun.star.sheet.SheetCell"):  # 選択オブジェクトがセルの時。
-				controlcontainer = actionevent.Source.getContext()
-				edit1 = controlcontainer.getControl("Edit1")  # テキストボックスコントロールを取得。
-				txt = edit1.getText()  # テキストボックスコントロールの文字列を取得。
-				if txt:  # テキストボックスコントロールに文字列がある時。
-					txt = self.transliteration.transliterate(txt, 0, len(txt), [])[0]  # 半角に変換
-					datarows = DATAROWS
-					if datarows:  # すでにグリッドコントロールにデータがある時。
-						lastindex = len(datarows) - 1  # 最終インデックスを取得。
-						[datarows.pop(lastindex-i) for i, datarow in enumerate(reversed(datarows)) if txt in datarow]  # txtがある行は後ろから削除する。
-					datarows.append((txt,))  # txtの行を追加。
-					gridcontrol1 = controlcontainer.getControl("Grid1")
-					recoverRows(gridcontrol1, datarows)
-					selection.setString(txt)  # 選択セルに代入。
-					global DATAROWS
-					DATAROWS = datarows					
-				sheet = controller.getActiveSheet()
-				celladdress = selection.getCellAddress()
-				nextcell = sheet[celladdress.Row+1, celladdress.Column]  # 下のセルを取得。
-				controller.select(nextcell)  # 下のセルを選択。
-				nexttxt = nextcell.getString()  # 下のセルの文字列を取得。
-				edit1.setText(nexttxt)  # テキストボックスコントロールにセルの内容を取得。
-				edit1.setFocus()  # テキストボックスコントロールをフォーカスする。
-				textlength = len(nexttxt)  # テキストボックスコントロール内の文字列の文字数を取得。
-				edit1selection = Selection(Min=textlength, Max=textlength)  # カーソルの位置を最後にする。指定しないと先頭になる。
-				edit1.setSelection(edit1selection)  # テクストボックスコントロールのカーソルの位置を変更。ピア作成後でないと反映されない。
+		griddatamodel = self.gridcontrol.getModel().getPropertyValue("GridDataModel")  # GridDataModelを取得。		
+		selectedrows = self.gridcontrol.getSelectedRows() if griddatamodel.RowCount>1 else (0,)  # 選択行インデックスのタプルを取得。1行だけの時はgetSelectedRows()で取得できない。
+		if cmd=="up":  # 連続していない複数行を選択している時はボタンを無効にしてある。
+			
+			
+			pass
+		elif cmd=="down":  # 連続していない複数行を選択している時はボタンを無効にしてある。
+			
+			
+			pass
+		elif cmd=="insert":  # 複数行を選択している時はボタンを無効にしてある。選択行がない時は最下行に追加する。
+			
+			
+			pass
+		elif cmd=="delete":
+			peer = self.gridcontrol.getPeer()  # ピアを取得。			
+			msg = "選択行を削除しますか?"
+			msgbox = peer.getToolkit().createMessageBox(peer, QUERYBOX, MessageBoxButtons.BUTTONS_YES_NO, SHEETNAME, msg)
+			if msgbox.execute()==MessageBoxResults.YES:		
+				for i in reversed(selectedrows):  # 選択した行インデックスを後ろから取得。
+					self.datarows.pop(i)
+					griddatamodel.removeRow(i)  # グリッドコントロールから選択行を削除。
 	def disposing(self, eventobject):
 		pass
 def saveData(doc, rangename, obj):	# configシートの名前rangenameにobjをJSONにして保存する。グローバル変数SHEETNAMEを使用。
@@ -246,6 +201,8 @@ def getSavedData(doc, rangename):  # configシートのragenameからデータ�
 class MouseListener(unohelper.Base, XMouseListener):  
 	def __init__(self, xscriptcontext): 	
 		self.xscriptcontext = xscriptcontext
+		self.gridpopupmenu = None
+		self.checkboxcontrol1 = None
 	def mousePressed(self, mouseevent):  # グリッドコントロールをクリックした時。コントロールモデルにはNameプロパティはない。
 		gridcontrol = mouseevent.Source  # グリッドコントロールを取得。
 		if mouseevent.Buttons==MouseButton.LEFT and mouseevent.ClickCount==2:  # ダブルクリックの時。
@@ -254,15 +211,15 @@ class MouseListener(unohelper.Base, XMouseListener):
 			if selection.supportsService("com.sun.star.sheet.SheetCell"):  # 選択オブジェクトがセルの時。
 				griddata = gridcontrol.getModel().getPropertyValue("GridDataModel")  # GridDataModelを取得。
 				rowdata = griddata.getRowData(gridcontrol.getCurrentRow())  # グリッドコントロールで選択している行のすべての列をタプルで取得。
-				selection.setString(rowdata[0])  # グリッドコントロールは1列と決めつける。
-				controller = doc.getCurrentController()  # 現在のコントローラを取得。			
-				sheet = controller.getActiveSheet()
-				celladdress = selection.getCellAddress()
-				nextcell = sheet[celladdress.Row+1, celladdress.Column]  # 下のセルを取得。
-				controller.select(nextcell)  # 下のセルを選択。
-				nexttxt = nextcell.getString()  # 下のセルの文字列を取得。
-				edit1 = gridcontrol.getContext().getControl("Edit1")  # テキストボックスコントロールを取得。				
-				edit1.setText(nexttxt)  # テキストボックスコントロールにセルの内容を取得。				
+				if self.checkboxcontrol1.getState():  # セルに追記、にチェックがある時。グリッドコントロールは1列と決めつけて処理する。
+					selection.setString("".join([selection.getString(), rowdata[0]]))  # セルに追記する。
+				else:
+					selection.setString(rowdata[0])  # セルに代入。
+					controller = doc.getCurrentController()  # 現在のコントローラを取得。			
+					sheet = controller.getActiveSheet()
+					celladdress = selection.getCellAddress()
+					nextcell = sheet[celladdress.Row+1, celladdress.Column]  # 下のセルを取得。
+					controller.select(nextcell)  # 下のセルを選択。
 		elif mouseevent.PopupTrigger:  # 右クリックの時。
 			pos = Rectangle(mouseevent.X, mouseevent.Y, 0, 0)  # ポップアップメニューを表示させる起点。
 			self.gridpopupmenu.execute(gridcontrol.getPeer(), pos, PopupMenuDirection.EXECUTE_DEFAULT)  # ポップアップメニューを表示させる。引数は親ピア、位置、方向							
@@ -280,9 +237,6 @@ class MenuListener(unohelper.Base, XMenuListener):
 	def itemHighlighted(self, menuevent):
 		pass
 	def itemSelected(self, menuevent):  # PopupMenuの項目がクリックされた時。どこのコントロールのメニューかを知る方法はない。
-		
-# 		import pydevd; pydevd.settrace(stdoutToServer=True, stderrToServer=True)
-		
 		itemid = menuevent.MenuId  # メニューIDを取得。1から始まる。
 		if itemid==1:
 			dialogwindow, windowlistener = self.args
@@ -313,13 +267,18 @@ class FrameActionListener(unohelper.Base, XFrameActionListener):
 	def disposing(self, eventobject):
 		pass
 class GridSelectionListener(unohelper.Base, XGridSelectionListener):
+	def __init__(self):
+		self.editcontrol1 = None
 	def selectionChanged(self, gridselectionevent):  # 行を追加した時も発火する。
 		gridcontrol = gridselectionevent.Source
 		selectedrowindexes = gridselectionevent.SelectedRowIndexes  # 行がないグリッドコントロールに行が追加されたときは負の値が入ってくる。
 		if selectedrowindexes:  # 選択行がある時。
+			
+			
+			
 			griddatamodel = gridcontrol.getModel().getPropertyValue("GridDataModel")
 			rowdata = griddatamodel.getRowData(selectedrowindexes[0])  # 選択行の最初の行のデータを取得。
-			gridcontrol.getContext().getControl("Edit1").setText(rowdata[0])  # テキストボックスに選択行の初行の文字列を代入。
+			self.editcontrol1.setText(rowdata[0])  # テキストボックスに選択行の初行の文字列を代入。
 			if griddatamodel.RowCount==1:  # 1行しかない時はまた発火できるように選択を外す。
 				gridcontrol.deselectRow(0)  # 選択行の選択を外す。選択していない行を指定すると永遠ループになる。
 	def disposing(self, eventobject):
