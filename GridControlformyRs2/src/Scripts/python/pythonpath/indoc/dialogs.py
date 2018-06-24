@@ -1,7 +1,7 @@
 #!/opt/libreoffice5.4/program/python
 # -*- coding: utf-8 -*-
 # import pydevd; pydevd.settrace(stdoutToServer=True, stderrToServer=True)
-from indoc import historydialog1, historydialog2, historydialog3, staticdialog1
+from indoc import historydialog1, historydialog2, historydialog3, historydialog4, staticdialog1
 from com.sun.star.awt import MouseButton  # 定数
 def mousePressed(enhancedmouseevent, xscriptcontext):  # マウスボタンを押した時。controllerにコンテナウィンドウはない。
 		selection = enhancedmouseevent.Target  # ターゲットのセルを取得。
@@ -19,7 +19,9 @@ def mousePressed(enhancedmouseevent, xscriptcontext):  # マウスボタンを�
 						elif dialogname=="historydialog2":   # 履歴ダイアログ。グリッドデータを変更する時に重複を削除する。他バグフィックス。
 							historydialog2.createDialog(xscriptcontext, enhancedmouseevent, dialogname, defaultrows)	
 						elif dialogname=="historydialog3":   # 履歴ダイアログ。逐次検索機能追加。
-							historydialog3.createDialog(xscriptcontext, enhancedmouseevent, dialogname, defaultrows)						
+							historydialog3.createDialog(xscriptcontext, enhancedmouseevent, dialogname, defaultrows)	
+						elif dialogname=="historydialog4":   # 履歴ダイアログ。リファクタリング。削除のバグフィクス。
+							historydialog4.createDialog(xscriptcontext, enhancedmouseevent, dialogname, defaultrows)						
 						elif dialogname=="staticdialog1":   # 静的ダイアログ。
 							staticdialog1.createDialog(xscriptcontext, enhancedmouseevent, dialogname, defaultrows)					
 					
