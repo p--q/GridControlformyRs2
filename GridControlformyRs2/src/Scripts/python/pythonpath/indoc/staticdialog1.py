@@ -55,7 +55,7 @@ def createDialog(xscriptcontext, enhancedmouseevent, dialogtitle, defaultrows=No
 	textboxprops.update({"Width": XWidth(buttonprops3, m)})  # 右端のコントロールから左の余白mを除いた幅を取得。
 	optioncontrolcontainerprops = {"PositionX": 0, "PositionY": 0, "Width": XWidth(textboxprops), "Height": YHeight(buttonprops2, 2), "BackgroundColor": 0xF0F0F0}  # コントロールコンテナの基本プロパティ。幅は右端のコントロールから取得。高さはコントロール追加後に最後に設定し直す。		
 	optioncontrolcontainer, optionaddControl = controlcontainerMaCreator(ctx, smgr, maTopx, optioncontrolcontainerprops)  # コントロールコンテナの作成。		
-	gridselectionlistener.editcontrol1 = optionaddControl("Edit", textboxprops)  
+	optionaddControl("Edit", textboxprops)  
 	checkboxcontrol1 = optionaddControl("CheckBox", checkboxprops1)
 	mouselistener.checkboxcontrol1 = checkboxcontrol1
 	checkboxcontrol2 = optionaddControl("CheckBox", checkboxprops2)  
@@ -66,6 +66,7 @@ def createDialog(xscriptcontext, enhancedmouseevent, dialogtitle, defaultrows=No
 	optionaddControl("Button", buttonprops4, {"addActionListener": actionlistener, "setActionCommand": "delete"})  
 	optioncontrolcontainerwindowlistener = OptionControlContainerWindowListener(optioncontrolcontainer)		
 	optioncontrolcontainer.addWindowListener(optioncontrolcontainerwindowlistener)  # コントロールコンテナの大きさを変更するとグリッドコントロールの大きさも変更するようにする。
+	gridselectionlistener.optioncontrolcontainer = optioncontrolcontainer
 	rectangle = controlcontainer.getPosSize()  # コントロールコンテナのRectangle Structを取得。px単位。
 	rectangle.X, rectangle.Y = dialogpoint  # クリックした位置を取得。ウィンドウタイトルを含めない座標。
 	taskcreator = smgr.createInstanceWithContext('com.sun.star.frame.TaskCreator', ctx)
@@ -102,10 +103,6 @@ def createDialog(xscriptcontext, enhancedmouseevent, dialogtitle, defaultrows=No
 				dialogwindow.setPosSize(0, 0, dialogstate["Width"], dialogstate["Height"], PosSize.SIZE)  # ウィンドウサイズを復元。WindowListenerが発火する。
 	args = doc, gridselectionlistener, actionlistener, dialogwindow, windowlistener, mouselistener, menulistener, controlcontainerwindowlistener, optioncontrolcontainerwindowlistener
 	dialogframe.addCloseListener(CloseListener(args))  # CloseListener。ノンモダルダイアログのリスナー削除用。	
-def recoverRows(gridcontrol, datarows):	
-	griddatamodel = gridcontrol.getModel().getPropertyValue("GridDataModel")  # GridDataModelを取得。	
-	griddatamodel.removeAllRows()  # グリッドコントロールの行を全削除。		
-	griddatamodel.addRows(("",)*len(datarows), datarows)  # グリッドに行を追加。
 class CloseListener(unohelper.Base, XCloseListener):  # ノンモダルダイアログのリスナー削除用。
 	def __init__(self, args):
 		self.args = args
@@ -122,7 +119,7 @@ class CloseListener(unohelper.Base, XCloseListener):  # ノンモダルダイア
 		dialogtitle = dialogframe.getTitle()  # コンテナウィンドウタイトルを取得。データ保存のIDに使う。
 		saveData(doc, "dialogstate_{}".format(dialogtitle), dialogstate)  # ダイアログの状態を保存。
 		gridcontrol1 = controlcontainer.getControl("Grid1")
-		saveData(doc, "GridDatarows_{}".format(dialogtitle), actionlistener.datarwos)  # ダイアログのグリッドコントロールの行を保存。
+		saveData(doc, "GridDatarows_{}".format(dialogtitle), actionlistener.datarows)  # ダイアログのグリッドコントロールの行を保存。
 		mouselistener.gridpopupmenu.removeMenuListener(menulistener)
 		gridcontrol1.removeSelectionListener(gridselectionlistener)
 		gridcontrol1.removeMouseListener(mouselistener)
@@ -140,27 +137,48 @@ class ActionListener(unohelper.Base, XActionListener):
 		self.gridcontrol = gridcontrol
 		self.datarows = datarows
 	def actionPerformed(self, actionevent):
+		
+# 		import pydevd; pydevd.settrace(stdoutToServer=True, stderrToServer=True)
+		
 		cmd = actionevent.ActionCommand
 		griddatamodel = self.gridcontrol.getModel().getPropertyValue("GridDataModel")  # GridDataModelを取得。		
-		selectedrows = self.gridcontrol.getSelectedRows() if griddatamodel.RowCount>1 else (0,)  # 選択行インデックスのタプルを取得。1行だけの時はgetSelectedRows()で取得できない。
-		if cmd=="up":  # 連続していない複数行を選択している時はボタンを無効にしてある。
-			
-			
-			pass
-		elif cmd=="down":  # 連続していない複数行を選択している時はボタンを無効にしてある。
-			
-			
-			pass
-		elif cmd=="insert":  # 複数行を選択している時はボタンを無効にしてある。選択行がない時は最下行に追加する。
-			
-			
-			pass
+		selectedrowindexes = self.gridcontrol.getSelectedRows() if griddatamodel.RowCount>1 else (0,)  # 選択行インデックスのタプルを取得。1行だけの時はgetSelectedRows()で取得できない。
+		if cmd=="up":  # 先頭行や連続していない複数行を選択している時はボタンを無効にしてある。
+			j = selectedrowindexes[0]  # 選択行の先頭行インデックスを取得。
+			datarowsToMove = self.datarows[j:selectedrowindexes[-1]+1]  # 移動させる行のリストを取得。
+			del self.datarows[j:selectedrowindexes[-1]+1]  # 移動させる行を削除。
+			self.datarows.insert(j-1, "dummy")  # 置換される要素を挿入。
+			self.datarows[j-1:j] = datarowsToMove  # 移動させる行を挿入。
+			griddatamodel.removeAllRows()  # グリッドコントロールの行を全削除。		
+			griddatamodel.addRows(("",)*len(self.datarows), self.datarows)  # グリッドに行を追加。
+			firstrow = j - 1  # 選択開始行を取得。
+			[self.gridcontrol.selectRow(i) for i in range(firstrow, firstrow+len(selectedrowindexes))]
+		elif cmd=="down":  # 最終行や連続していない複数行を選択している時はボタンを無効にしてある。
+			j = selectedrowindexes[-1]  # 選択行の最終行インデックスを取得。
+			datarowsToMove = self.datarows[selectedrowindexes[0]:j+1]  # 移動させる行のリストを取得。
+			self.datarows.insert(j+2, "dummy")  # 置換される要素を挿入。
+			self.datarows[j+2:j+3] = datarowsToMove  # 移動させる行を挿入。
+			del self.datarows[selectedrowindexes[0]:j+1]  # 移動させる行を削除。
+			griddatamodel.removeAllRows()  # グリッドコントロールの行を全削除。	
+			griddatamodel.addRows(("",)*len(self.datarows), self.datarows)  # グリッドに行を追加。
+			c = len(selectedrowindexes)
+			firstrow = j + 2- c # 選択開始行を取得。
+			[self.gridcontrol.selectRow(i) for i in range(firstrow, firstrow+c)]
+		elif cmd=="insert":  # 選択行の位置に追加する。複数行を選択している時はボタンを無効にしてある。選択行がない時は最下行に追加する。
+			txt = actionevent.Source.getContext().getControl("Edit1").getText()  # テキストボックスコントロールの文字列を取得。
+			if selectedrowindexes:  # 選択行がある時。
+				i = selectedrowindexes[0]
+				griddatamodel.insertRow(i, "", (txt,))
+				self.datarows.insert(i, (txt,))
+			else:  # 選択行がない時。
+				griddatamodel.addRow("", (txt,))
+				self.datarows.append((txt,))
 		elif cmd=="delete":
 			peer = self.gridcontrol.getPeer()  # ピアを取得。			
 			msg = "選択行を削除しますか?"
 			msgbox = peer.getToolkit().createMessageBox(peer, QUERYBOX, MessageBoxButtons.BUTTONS_YES_NO, SHEETNAME, msg)
 			if msgbox.execute()==MessageBoxResults.YES:		
-				for i in reversed(selectedrows):  # 選択した行インデックスを後ろから取得。
+				for i in reversed(selectedrowindexes):  # 選択した行インデックスを後ろから取得。
 					self.datarows.pop(i)
 					griddatamodel.removeRow(i)  # グリッドコントロールから選択行を削除。
 	def disposing(self, eventobject):
@@ -259,28 +277,50 @@ class MenuListener(unohelper.Base, XMenuListener):
 		pass   
 	def disposing(self, eventobject):
 		pass
+class GridSelectionListener(unohelper.Base, XGridSelectionListener):
+	def __init__(self):
+		self.optioncontrolcontainer = None
+	def selectionChanged(self, gridselectionevent):  # 行を追加した時も発火する。このメソッドでブレークするとマウスが使えなくなる。
+
+# 		import pydevd; pydevd.settrace(stdoutToServer=True, stderrToServer=True)
+		
+		optioncontrolcontainer = self.optioncontrolcontainer
+		gridcontrol = gridselectionevent.Source
+		selectedrowindexes = list(gridselectionevent.SelectedRowIndexes)  # 行がないグリッドコントロールに行が追加されたときは負の値が入ってくる。
+		selectedrowindexes.sort()  # 選択順にインデックスが入っているので昇順にソートする。
+		upbuttoncontrol = optioncontrolcontainer.getControl("Button1")
+		downbuttoncontrol = optioncontrolcontainer.getControl("Button2")
+		insertbuttoncontrol = optioncontrolcontainer.getControl("Button3")
+		upbuttoncontrol.setEnable(True)  # まず全てのボタンを有効にする。
+		downbuttoncontrol.setEnable(True)
+		insertbuttoncontrol.setEnable(True)
+		indexcount = len(selectedrowindexes)
+		
+# 		if not indexcount:  # 選択行がない時。そういう時がある?
+# 			return
+
+
+		if selectedrowindexes[0]==0:  # 先頭行が選択されている時。
+			upbuttoncontrol.setEnable(False)  # 上へボタンを無効にする。
+		griddatamodel = gridcontrol.getModel().getPropertyValue("GridDataModel")	
+		if selectedrowindexes[-1]==griddatamodel.RowCount-1:  # 最終行が選択されている時。
+			downbuttoncontrol.setEnable(False)  # 下へボタンを無効にする。
+		if indexcount>1:  # 複数行を選択している時。
+			insertbuttoncontrol.setEnable(False)  # 行挿入ボタンを無効にする。
+			if indexcount!=selectedrowindexes[-1]-selectedrowindexes[0]+1:  # 連続した行でない時。
+				upbuttoncontrol.setEnable(False)  # 上へボタンを無効にする。
+				downbuttoncontrol.setEnable(False)  # 下へボタンを無効にする。
+		rowdata = griddatamodel.getRowData(selectedrowindexes[0])  # 選択行の最初の行のデータを取得。
+		optioncontrolcontainer.getControl("Edit1").setText(rowdata[0])  # テキストボックスに選択行の初行の文字列を代入。
+		if griddatamodel.RowCount==1:  # 1行しかない時はまた発火できるように選択を外す。
+			gridcontrol.deselectRow(0)  # 選択行の選択を外す。選択していない行を指定すると永遠ループになる。			
+	def disposing(self, eventobject):
+		pass
 class FrameActionListener(unohelper.Base, XFrameActionListener):
 	def frameAction(self, frameactionevent):
 		if frameactionevent.Action==FRAME_UI_DEACTIVATING:  # フレームがアクティブでなくなった時。TopWindowListenerのwindowDeactivated()だとウィンドウタイトルバーをクリックしただけで発火してしまう。
 			frameactionevent.Frame.removeFrameActionListener(self)  # フレームにつけたリスナーを除去。
 			frameactionevent.Frame.close(True)
-	def disposing(self, eventobject):
-		pass
-class GridSelectionListener(unohelper.Base, XGridSelectionListener):
-	def __init__(self):
-		self.editcontrol1 = None
-	def selectionChanged(self, gridselectionevent):  # 行を追加した時も発火する。
-		gridcontrol = gridselectionevent.Source
-		selectedrowindexes = gridselectionevent.SelectedRowIndexes  # 行がないグリッドコントロールに行が追加されたときは負の値が入ってくる。
-		if selectedrowindexes:  # 選択行がある時。
-			
-			
-			
-			griddatamodel = gridcontrol.getModel().getPropertyValue("GridDataModel")
-			rowdata = griddatamodel.getRowData(selectedrowindexes[0])  # 選択行の最初の行のデータを取得。
-			self.editcontrol1.setText(rowdata[0])  # テキストボックスに選択行の初行の文字列を代入。
-			if griddatamodel.RowCount==1:  # 1行しかない時はまた発火できるように選択を外す。
-				gridcontrol.deselectRow(0)  # 選択行の選択を外す。選択していない行を指定すると永遠ループになる。
 	def disposing(self, eventobject):
 		pass
 class WindowListener(unohelper.Base, XWindowListener):
