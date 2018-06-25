@@ -1,7 +1,7 @@
 #!/opt/libreoffice5.4/program/python
 # -*- coding: utf-8 -*-
 # import pydevd; pydevd.settrace(stdoutToServer=True, stderrToServer=True)
-from indoc import historydialog1, historydialog2, historydialog3, historydialog4, staticdialog1
+from indoc import historydialog1, historydialog2, historydialog3, historydialog4, historydialog5, staticdialog1
 from com.sun.star.awt import MouseButton  # 定数
 def mousePressed(enhancedmouseevent, xscriptcontext):  # マウスボタンを押した時。controllerにコンテナウィンドウはない。
 		selection = enhancedmouseevent.Target  # ターゲットのセルを取得。
@@ -24,7 +24,8 @@ def mousePressed(enhancedmouseevent, xscriptcontext):  # マウスボタンを�
 							historydialog4.createDialog(xscriptcontext, enhancedmouseevent, dialogname, defaultrows)						
 						elif dialogname=="staticdialog1":   # 静的ダイアログ。
 							staticdialog1.createDialog(xscriptcontext, enhancedmouseevent, dialogname, defaultrows)					
-					
+						elif dialogname=="historydialog5":   # 履歴ダイアログ。余白の縮小。
+							historydialog5.createDialog(xscriptcontext, enhancedmouseevent, dialogname, defaultrows)					
 					
 						
 					return False  # セル編集モードにしない。

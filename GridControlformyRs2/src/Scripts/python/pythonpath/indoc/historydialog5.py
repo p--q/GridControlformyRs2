@@ -23,20 +23,21 @@ def createDialog(xscriptcontext, enhancedmouseevent, dialogtitle, defaultrows=No
 	doc = xscriptcontext.getDocument()  # マクロを起動した時のドキュメントのモデルを取得。   
 	dialogpoint = getDialogPoint(doc, enhancedmouseevent)  # クリックした位置のメニューバーの高さ分下の位置を取得。単位ピクセル。一部しか表示されていないセルのときはNoneが返る。
 	if dialogpoint:  # クリックした位置が取得出来た時。
+		txt = doc.getCurrentSelection().getString()  # 選択セルの文字列を取得。
 		docframe = doc.getCurrentController().getFrame()  # モデル→コントローラ→フレーム、でドキュメントのフレームを取得。
 		containerwindow = docframe.getContainerWindow()  # ドキュメントのウィンドウ(コンテナウィンドウ=ピア)を取得。
 		toolkit = containerwindow.getToolkit()  # ピアからツールキットを取得。  		
-		m = 6  # コントロール間の間隔。
+		m = 2  # コントロール間の間隔。
 		h = 12  # コントロール間の高さ。
-		gridprops = {"PositionX": m, "PositionY": m, "Height": 50, "ShowRowHeader": False, "ShowColumnHeader": False, "SelectionModel": MULTI}  # グリッドコントロールのプロパティ。
-		textboxprops = {"PositionX": m, "PositionY": YHeight(gridprops, 2), "Height": h, "Text": doc.getCurrentSelection().getString()}  # テクストボックスコントロールのプロパティ。
-		checkboxprops = {"PositionY": YHeight(textboxprops, 4), "Height": h, "Tabstop": False}  # チェックボックスコントロールのプロパティ。
+		gridprops = {"PositionX": 0, "PositionY": 0, "Height": 50, "ShowRowHeader": False, "ShowColumnHeader": False, "SelectionModel": MULTI}  # グリッドコントロールのプロパティ。
+		textboxprops = {"PositionX": 0, "PositionY": YHeight(gridprops, 2), "Height": h, "Text": txt}  # テクストボックスコントロールのプロパティ。
+		checkboxprops = {"PositionY": YHeight(textboxprops, m), "Height": h, "Tabstop": False}  # チェックボックスコントロールのプロパティ。
 		checkboxprops1, checkboxprops2 = [checkboxprops.copy() for dummy in range(2)]
-		checkboxprops1.update({"PositionX": m, "Width": 42, "Label": "~サイズ復元", "State": 1})  # サイズ復元はデフォルトでは有効。
+		checkboxprops1.update({"PositionX": 0, "Width": 42, "Label": "~サイズ復元", "State": 1})  # サイズ復元はデフォルトでは有効。
 		checkboxprops2.update({"PositionX": XWidth(checkboxprops1), "Width": 38, "Label": "~逐次検索", "State": 0})  # 逐次検索はデフォルトでは無効。
-		buttonprops = {"PositionX": XWidth(checkboxprops2, m), "PositionY": YHeight(textboxprops, 4), "Width": 30, "Height": h+2, "Label": "Enter"}  # ボタンのプロパティ。PushButtonTypeの値はEnumではエラーになる。VerticalAlignではtextboxと高さが揃わない。
-		gridprops["Width"] = textboxprops["Width"] = XWidth(buttonprops, -m)
-		controlcontainerprops = {"PositionX": 0, "PositionY": 0, "Width": XWidth(gridprops, m), "Height": YHeight(buttonprops, m), "BackgroundColor": 0xF0F0F0}  # コントロールコンテナの基本プロパティ。幅は右端のコントロールから取得。高さはコントロール追加後に最後に設定し直す。		
+		buttonprops = {"PositionX": XWidth(checkboxprops2), "PositionY": YHeight(textboxprops, 4), "Width": 30, "Height": h+2, "Label": "Enter"}  # ボタンのプロパティ。PushButtonTypeの値はEnumではエラーになる。VerticalAlignではtextboxと高さが揃わない。
+		gridprops["Width"] = textboxprops["Width"] = XWidth(buttonprops)
+		controlcontainerprops = {"PositionX": 0, "PositionY": 0, "Width": XWidth(gridprops), "Height": YHeight(buttonprops, m), "BackgroundColor": 0xF0F0F0}  # コントロールコンテナの基本プロパティ。幅は右端のコントロールから取得。高さはコントロール追加後に最後に設定し直す。		
 		maTopx = createConverters(containerwindow)  # ma単位をピクセルに変換する関数を取得。
 		controlcontainer, addControl = controlcontainerMaCreator(ctx, smgr, maTopx, controlcontainerprops)  # コントロールコンテナの作成。		
 		gridselectionlistener = GridSelectionListener()
@@ -86,9 +87,9 @@ def createDialog(xscriptcontext, enhancedmouseevent, dialogtitle, defaultrows=No
 				checkboxcontrol1.setState(checkbox1sate)  # 状態を復元。	
 			checkbox2sate = dialogstate.get("CheckBox2sate")  # 逐語検索、チェックボックス。			
 			if checkbox2sate is not None:  # 逐語検索、が保存されている時。
-				if checkbox2sate:  # チェックされている時逐次検索を有効にする。
-					textlistener.flg = True  #	itemlistenerが発火する前にフラグを立てとかないといけない。	
-				checkboxcontrol2.setState(checkbox2sate)  # itemlistenerが発火する。			
+				if checkbox2sate:  # チェックされている時逐次検索を有効にする。	
+					recoverRows(gridcontrol1, [i for i in DATAROWS if i[0].startswith(txt)])  # txtで始まっている行だけに絞る。txtが空文字の時はすべてTrueになる。
+				checkboxcontrol2.setState(checkbox2sate)  # itemlistenerは発火しない。			
 		args = doc, controlcontainer, gridselectionlistener, actionlistener, dialogwindow, windowlistener, mouselistener, menulistener, textlistener, itemlistener
 		dialogframe.addCloseListener(CloseListener(args))  # CloseListener。ノンモダルダイアログのリスナー削除用。	
 		controlcontainer.setVisible(True)  # コントロールの表示。
@@ -98,14 +99,22 @@ class ItemListener(unohelper.Base, XItemListener):
 	def __init__(self, textlistener):
 		self.textlistener = textlistener
 	def itemStateChanged(self, itemevent):  
+		
+# 		import pydevd; pydevd.settrace(stdoutToServer=True, stderrToServer=True)
+		
 		checkboxcontrol1 = itemevent.Source
 		if checkboxcontrol1.getState():
-			self.textlistener.flg = True
+# 			self.textlistener.flg = True
 			controlcontainer = checkboxcontrol1.getContext()
 			txt = controlcontainer.getControl("Edit1").getText()
 			recoverRows(controlcontainer.getControl("Grid1"), [i for i in DATAROWS if i[0].startswith(txt)])  # txtで始まっている行だけに絞る。txtが空文字の時はすべてTrueになる。
 		else:
-			self.textlistener.flg = False
+			
+			# どの行も選択されていないとチェックがはずせない？
+			
+# 			import pydevd; pydevd.settrace(stdoutToServer=True, stderrToServer=True)
+			
+# 			self.textlistener.flg = False
 			recoverRows(checkboxcontrol1.getContext().getControl("Grid1"), DATAROWS)
 	def disposing(self, eventobject):
 		pass
@@ -118,7 +127,7 @@ class TextListener(unohelper.Base, XTextListener):
 	def __init__(self, xscriptcontext):
 		self.transliteration = fullwidth_halfwidth(xscriptcontext)
 		self.history = ""  # 前値を保存する。
-		self.flg = False  # 発火するかのフラグ。
+		self.flg = True  # 発火するかのフラグ。
 	def textChanged(self, textevent):  # 複数回呼ばれるので前値との比較が必要。
 		if self.flg:  # フラグが立っている時のみ。
 			editcontrol1 = textevent.Source
@@ -126,9 +135,11 @@ class TextListener(unohelper.Base, XTextListener):
 			if txt!=self.history:  # 前値から変化する時のみ。
 				txt = self.transliteration.transliterate(txt, 0, len(txt), [])[0]  # 半角に変換
 				self.flg = False  # フラグを倒す。
-				editcontrol1.setText(txt)  # 永久ループになるのでTextListenerを発火しておかないといけない。
+				editcontrol1.setText(txt)  # 永久ループになるのでTextListenerを発火しないようにしておかないといけない。
 				self.flg = True  # フラグを立てる。
-				recoverRows(editcontrol1.getContext().getControl("Grid1"), [i for i in DATAROWS if i[0].startswith(txt)])  # txtで始まっている行だけに絞る。txtが空文字の時はすべてTrueになる。
+				controlcontainer = editcontrol1.getContext()
+				if controlcontainer.getControl("CheckBox2").getState():  # 逐次検索が有効になっている時。
+					recoverRows(controlcontainer.getControl("Grid1"), [i for i in DATAROWS if i[0].startswith(txt)])  # txtで始まっている行だけに絞る。txtが空文字の時はすべてTrueになる。
 				self.history = txt	
 	def disposing(self, eventobject):
 		pass
@@ -248,7 +259,10 @@ class MouseListener(unohelper.Base, XMouseListener):
 			selection = doc.getCurrentSelection()  # シート上で選択しているオブジェクトを取得。
 			if selection.supportsService("com.sun.star.sheet.SheetCell"):  # 選択オブジェクトがセルの時。
 				griddata = gridcontrol.getModel().getPropertyValue("GridDataModel")  # GridDataModelを取得。
-				rowdata = griddata.getRowData(gridcontrol.getCurrentRow())  # グリッドコントロールで選択している行のすべての列をタプルで取得。
+				j = gridcontrol.getCurrentRow()  # 選択行インデックス。負数が返ってくることがある。
+				if j<0:  # 負数の時は何もしない。
+					return
+				rowdata = griddata.getRowData(j)  # グリッドコントロールで選択している行のすべての列をタプルで取得。
 				selection.setString(rowdata[0])  # グリッドコントロールは1列と決めつける。
 				controller = doc.getCurrentController()  # 現在のコントローラを取得。			
 				sheet = controller.getActiveSheet()

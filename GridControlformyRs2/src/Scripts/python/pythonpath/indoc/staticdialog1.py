@@ -137,9 +137,6 @@ class ActionListener(unohelper.Base, XActionListener):
 		self.gridcontrol = gridcontrol
 		self.datarows = datarows
 	def actionPerformed(self, actionevent):
-		
-# 		import pydevd; pydevd.settrace(stdoutToServer=True, stderrToServer=True)
-		
 		cmd = actionevent.ActionCommand
 		griddatamodel = self.gridcontrol.getModel().getPropertyValue("GridDataModel")  # GridDataModelを取得。		
 		selectedrowindexes = self.gridcontrol.getSelectedRows() if griddatamodel.RowCount>1 else (0,)  # 選択行インデックスのタプルを取得。1行だけの時はgetSelectedRows()で取得できない。
@@ -281,22 +278,15 @@ class GridSelectionListener(unohelper.Base, XGridSelectionListener):
 	def __init__(self):
 		self.optioncontrolcontainer = None
 	def selectionChanged(self, gridselectionevent):  # 行を追加した時も発火する。このメソッドでブレークするとマウスが使えなくなる。
-
-# 		import pydevd; pydevd.settrace(stdoutToServer=True, stderrToServer=True)
-		
 		optioncontrolcontainer = self.optioncontrolcontainer
 		gridcontrol = gridselectionevent.Source
-		selectedrowindexes = list(gridselectionevent.SelectedRowIndexes)  # 行を追加したあとは負の値がインデックスに入ってくる。負の値はエラーになる。
+		selectedrowindexes = list(gridselectionevent.SelectedRowIndexes)  # 並べ替えるのでリストにして取得。
+		if not selectedrowindexes:  # 選択行がない時(選択行を削除した時)。
+			return  # 何もしない		
 		selectedrowindexes.sort()  # 選択順にインデックスが入っているので昇順にソートする。
-		
-		
-		selectedrowindexes = list(filter(lambda x:x>=0, selectedrowindexes))  # 負の要素を除く。
-		
-		
-		indexcount = len(selectedrowindexes)  # 選択行数を取得。
-		if not indexcount:  # 選択行がない時。行を削除した時にこうなる。
-			return  # 何もしない。
-		
+		if selectedrowindexes[0]<0:  # 負数のインデックスがある時(すべての行を削除した後に行を行を追加した時など)。
+			gridcontrol.deselectAllRows()  # 選択行がおかしいので選択状態を外して終了。
+			return
 		upbuttoncontrol = optioncontrolcontainer.getControl("Button1")
 		downbuttoncontrol = optioncontrolcontainer.getControl("Button2")
 		insertbuttoncontrol = optioncontrolcontainer.getControl("Button3")
@@ -308,6 +298,7 @@ class GridSelectionListener(unohelper.Base, XGridSelectionListener):
 		griddatamodel = gridcontrol.getModel().getPropertyValue("GridDataModel")	
 		if selectedrowindexes[-1]==griddatamodel.RowCount-1:  # 最終行が選択されている時。
 			downbuttoncontrol.setEnable(False)  # 下へボタンを無効にする。
+		indexcount = len(selectedrowindexes)  # 選択行数を取得。
 		if indexcount>1:  # 複数行を選択している時。
 			insertbuttoncontrol.setEnable(False)  # 行挿入ボタンを無効にする。
 			if indexcount!=selectedrowindexes[-1]-selectedrowindexes[0]+1:  # 連続した行でない時。
