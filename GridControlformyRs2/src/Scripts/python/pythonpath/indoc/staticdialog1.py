@@ -286,20 +286,23 @@ class GridSelectionListener(unohelper.Base, XGridSelectionListener):
 		
 		optioncontrolcontainer = self.optioncontrolcontainer
 		gridcontrol = gridselectionevent.Source
-		selectedrowindexes = list(gridselectionevent.SelectedRowIndexes)  # 行がないグリッドコントロールに行が追加されたときは負の値が入ってくる。
+		selectedrowindexes = list(gridselectionevent.SelectedRowIndexes)  # 行を追加したあとは負の値がインデックスに入ってくる。負の値はエラーになる。
 		selectedrowindexes.sort()  # 選択順にインデックスが入っているので昇順にソートする。
+		
+		
+		selectedrowindexes = list(filter(lambda x:x>=0, selectedrowindexes))  # 負の要素を除く。
+		
+		
+		indexcount = len(selectedrowindexes)  # 選択行数を取得。
+		if not indexcount:  # 選択行がない時。行を削除した時にこうなる。
+			return  # 何もしない。
+		
 		upbuttoncontrol = optioncontrolcontainer.getControl("Button1")
 		downbuttoncontrol = optioncontrolcontainer.getControl("Button2")
 		insertbuttoncontrol = optioncontrolcontainer.getControl("Button3")
 		upbuttoncontrol.setEnable(True)  # まず全てのボタンを有効にする。
 		downbuttoncontrol.setEnable(True)
 		insertbuttoncontrol.setEnable(True)
-		indexcount = len(selectedrowindexes)
-		
-# 		if not indexcount:  # 選択行がない時。そういう時がある?
-# 			return
-
-
 		if selectedrowindexes[0]==0:  # 先頭行が選択されている時。
 			upbuttoncontrol.setEnable(False)  # 上へボタンを無効にする。
 		griddatamodel = gridcontrol.getModel().getPropertyValue("GridDataModel")	
