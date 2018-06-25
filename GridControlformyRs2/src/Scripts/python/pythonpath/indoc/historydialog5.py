@@ -82,13 +82,13 @@ def createDialog(xscriptcontext, enhancedmouseevent, dialogtitle, defaultrows=No
 		if dialogstate is not None:  # 保存してあるダイアログの状態がある時。
 			checkbox1sate = dialogstate.get("CheckBox1sate")  # サイズ復元、チェックボックス。キーがなければNoneが返る。	
 			if checkbox1sate is not None:  # サイズ復元、が保存されている時。
-				if checkbox1sate:  # サイズ復元されている時。
+				if checkbox1sate:  # サイズ復元がチェックされている時。
 					dialogwindow.setPosSize(0, 0, dialogstate["Width"], dialogstate["Height"], PosSize.SIZE)  # ウィンドウサイズを復元。
 				checkboxcontrol1.setState(checkbox1sate)  # 状態を復元。	
 			checkbox2sate = dialogstate.get("CheckBox2sate")  # 逐語検索、チェックボックス。			
 			if checkbox2sate is not None:  # 逐語検索、が保存されている時。
 				if checkbox2sate:  # チェックされている時逐次検索を有効にする。	
-					recoverRows(gridcontrol1, [i for i in DATAROWS if i[0].startswith(txt)])  # txtで始まっている行だけに絞る。txtが空文字の時はすべてTrueになる。
+					refreshRows(gridcontrol1, [i for i in DATAROWS if i[0].startswith(txt)])  # txtで始まっている行だけに絞る。txtが空文字の時はすべてTrueになる。
 				checkboxcontrol2.setState(checkbox2sate)  # itemlistenerは発火しない。			
 		args = doc, controlcontainer, gridselectionlistener, actionlistener, dialogwindow, windowlistener, mouselistener, menulistener, textlistener, itemlistener
 		dialogframe.addCloseListener(CloseListener(args))  # CloseListener。ノンモダルダイアログのリスナー削除用。	
@@ -99,48 +99,37 @@ class ItemListener(unohelper.Base, XItemListener):
 	def __init__(self, textlistener):
 		self.textlistener = textlistener
 	def itemStateChanged(self, itemevent):  
-		
-# 		import pydevd; pydevd.settrace(stdoutToServer=True, stderrToServer=True)
-		
-		checkboxcontrol1 = itemevent.Source
-		if checkboxcontrol1.getState():
-# 			self.textlistener.flg = True
-			controlcontainer = checkboxcontrol1.getContext()
-			txt = controlcontainer.getControl("Edit1").getText()
-			recoverRows(controlcontainer.getControl("Grid1"), [i for i in DATAROWS if i[0].startswith(txt)])  # txtで始まっている行だけに絞る。txtが空文字の時はすべてTrueになる。
+		checkboxcontrol2 = itemevent.Source
+		gridcontrol1 = checkboxcontrol2.getContext().getControl("Grid1")
+		if checkboxcontrol2.getState():
+			txt = checkboxcontrol2.getContext().getControl("Edit1").getText()
+			refreshRows(gridcontrol1, [i for i in DATAROWS if i[0].startswith(txt)])  # txtで始まっている行だけに絞る。txtが空文字の時はすべてTrueになる。
 		else:
-			
-			# どの行も選択されていないとチェックがはずせない？
-			
-# 			import pydevd; pydevd.settrace(stdoutToServer=True, stderrToServer=True)
-			
-# 			self.textlistener.flg = False
-			recoverRows(checkboxcontrol1.getContext().getControl("Grid1"), DATAROWS)
+			refreshRows(gridcontrol1, DATAROWS)
 	def disposing(self, eventobject):
 		pass
-def recoverRows(gridcontrol, datarows):	
+def refreshRows(gridcontrol, datarows):	
 	griddatamodel = gridcontrol.getModel().getPropertyValue("GridDataModel")  # GridDataModelを取得。	
-	griddatamodel.removeAllRows()  # グリッドコントロールの行を全削除。		
-	griddatamodel.addRows(("",)*len(datarows), datarows)  # グリッドに行を追加。
-	scrollDown(gridcontrol)  # グリッドコントロールを下までスクロール。
+	griddatamodel.removeAllRows()  # グリッドコントロールの行を全削除。	
+	if datarows:  # データ行がある時。
+		griddatamodel.addRows(("",)*len(datarows), datarows)  # グリッドに行を追加。
+		scrollDown(gridcontrol)  # グリッドコントロールを下までスクロール。
 class TextListener(unohelper.Base, XTextListener):
 	def __init__(self, xscriptcontext):
 		self.transliteration = fullwidth_halfwidth(xscriptcontext)
 		self.history = ""  # 前値を保存する。
-		self.flg = True  # 発火するかのフラグ。
 	def textChanged(self, textevent):  # 複数回呼ばれるので前値との比較が必要。
-		if self.flg:  # フラグが立っている時のみ。
-			editcontrol1 = textevent.Source
-			txt = editcontrol1.getText()
-			if txt!=self.history:  # 前値から変化する時のみ。
-				txt = self.transliteration.transliterate(txt, 0, len(txt), [])[0]  # 半角に変換
-				self.flg = False  # フラグを倒す。
-				editcontrol1.setText(txt)  # 永久ループになるのでTextListenerを発火しないようにしておかないといけない。
-				self.flg = True  # フラグを立てる。
-				controlcontainer = editcontrol1.getContext()
-				if controlcontainer.getControl("CheckBox2").getState():  # 逐次検索が有効になっている時。
-					recoverRows(controlcontainer.getControl("Grid1"), [i for i in DATAROWS if i[0].startswith(txt)])  # txtで始まっている行だけに絞る。txtが空文字の時はすべてTrueになる。
-				self.history = txt	
+		editcontrol1 = textevent.Source
+		txt = editcontrol1.getText()
+		if txt!=self.history:  # 前値から変化する時のみ。
+			txt = self.transliteration.transliterate(txt, 0, len(txt), [])[0]  # 半角に変換
+			editcontrol1.removeTextListener(self)
+			editcontrol1.setText(txt)  # 永久ループになるのでTextListenerを発火しないようにしておかないといけない。
+			editcontrol1.addTextListener(self)
+			controlcontainer = editcontrol1.getContext()
+			if controlcontainer.getControl("CheckBox2").getState():  # 逐次検索が有効になっている時。
+				refreshRows(controlcontainer.getControl("Grid1"), [i for i in DATAROWS if i[0].startswith(txt)])  # txtで始まっている行だけに絞る。txtが空文字の時はすべてTrueになる。
+			self.history = txt	
 	def disposing(self, eventobject):
 		pass
 def fullwidth_halfwidth(xscriptcontext):
@@ -199,7 +188,7 @@ class ActionListener(unohelper.Base, XActionListener):
 						[datarows.pop(lastindex-i) for i, datarow in enumerate(reversed(datarows)) if txt in datarow]  # txtがある行は後ろから削除する。
 					datarows.append((txt,))  # txtの行を追加。
 					gridcontrol1 = controlcontainer.getControl("Grid1")
-					recoverRows(gridcontrol1, datarows)
+					refreshRows(gridcontrol1, datarows)
 					selection.setString(txt)  # 選択セルに代入。
 					global DATAROWS
 					DATAROWS = datarows					
@@ -253,6 +242,12 @@ class MouseListener(unohelper.Base, XMouseListener):
 		self.xscriptcontext = xscriptcontext
 		self.gridpopupmenu = None
 	def mousePressed(self, mouseevent):  # グリッドコントロールをクリックした時。コントロールモデルにはNameプロパティはない。
+		
+		
+		# 逐次検索を有効にしてマウスだけで操作した時、3で絞って、3と343になって、343を選択して343だけになったときにMouseListenerのmousePressed()だけしか発火しなくなる。
+		
+		
+		
 		gridcontrol = mouseevent.Source  # グリッドコントロールを取得。
 		if mouseevent.Buttons==MouseButton.LEFT and mouseevent.ClickCount==2:  # ダブルクリックの時。
 			doc = self.xscriptcontext.getDocument()
@@ -314,7 +309,7 @@ class MenuListener(unohelper.Base, XMenuListener):
 			if msgbox.execute()==MessageBoxResults.YES:		
 				msg = "本当にすべての行を削除しますか？\n削除したデータは取り戻せません。"
 				msgbox = peer.getToolkit().createMessageBox(peer, QUERYBOX, MessageBoxButtons.BUTTONS_YES_NO, SHEETNAME, msg)				
-				if msgbox.execute()==MessageBoxResults.YES:				
+				if msgbox.execute()==MessageBoxResults.YES:	
 					griddatamodel.removeAllRows()  # グリッドコントロールの行を全削除。
 					datarows.clear()  # 全データ行をクリア。	
 		global DATAROWS
