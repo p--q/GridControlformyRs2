@@ -249,24 +249,30 @@ class MouseListener(unohelper.Base, XMouseListener):
 		
 		
 		gridcontrol = mouseevent.Source  # グリッドコントロールを取得。
-		if mouseevent.Buttons==MouseButton.LEFT and mouseevent.ClickCount==2:  # ダブルクリックの時。
-			doc = self.xscriptcontext.getDocument()
-			selection = doc.getCurrentSelection()  # シート上で選択しているオブジェクトを取得。
-			if selection.supportsService("com.sun.star.sheet.SheetCell"):  # 選択オブジェクトがセルの時。
-				griddata = gridcontrol.getModel().getPropertyValue("GridDataModel")  # GridDataModelを取得。
-				j = gridcontrol.getCurrentRow()  # 選択行インデックス。負数が返ってくることがある。
-				if j<0:  # 負数の時は何もしない。
-					return
-				rowdata = griddata.getRowData(j)  # グリッドコントロールで選択している行のすべての列をタプルで取得。
-				selection.setString(rowdata[0])  # グリッドコントロールは1列と決めつける。
-				controller = doc.getCurrentController()  # 現在のコントローラを取得。			
-				sheet = controller.getActiveSheet()
-				celladdress = selection.getCellAddress()
-				nextcell = sheet[celladdress.Row+1, celladdress.Column]  # 下のセルを取得。
-				controller.select(nextcell)  # 下のセルを選択。
-				nexttxt = nextcell.getString()  # 下のセルの文字列を取得。
-				edit1 = gridcontrol.getContext().getControl("Edit1")  # テキストボックスコントロールを取得。				
-				edit1.setText(nexttxt)  # テキストボックスコントロールにセルの内容を取得。				
+		if mouseevent.Buttons==MouseButton.LEFT:  # 左ボタンクリックの時。
+			if mouseevent.ClickCount==1:  # シングルクリックの時。
+			
+			
+				pass
+			
+			elif mouseevent.ClickCount==2:  # ダブルクリックの時。
+				doc = self.xscriptcontext.getDocument()
+				selection = doc.getCurrentSelection()  # シート上で選択しているオブジェクトを取得。
+				if selection.supportsService("com.sun.star.sheet.SheetCell"):  # 選択オブジェクトがセルの時。
+					griddata = gridcontrol.getModel().getPropertyValue("GridDataModel")  # GridDataModelを取得。
+					j = gridcontrol.getCurrentRow()  # 選択行インデックス。負数が返ってくることがある。
+					if j<0:  # 負数の時は何もしない。
+						return
+					rowdata = griddata.getRowData(j)  # グリッドコントロールで選択している行のすべての列をタプルで取得。
+					selection.setString(rowdata[0])  # グリッドコントロールは1列と決めつける。
+					controller = doc.getCurrentController()  # 現在のコントローラを取得。			
+					sheet = controller.getActiveSheet()
+					celladdress = selection.getCellAddress()
+					nextcell = sheet[celladdress.Row+1, celladdress.Column]  # 下のセルを取得。
+					controller.select(nextcell)  # 下のセルを選択。
+					nexttxt = nextcell.getString()  # 下のセルの文字列を取得。
+					edit1 = gridcontrol.getContext().getControl("Edit1")  # テキストボックスコントロールを取得。				
+					edit1.setText(nexttxt)  # テキストボックスコントロールにセルの内容を取得。				
 		elif mouseevent.PopupTrigger:  # 右クリックの時。
 			rowindex = gridcontrol.getRowAtPoint(mouseevent.X, mouseevent.Y)  # クリックした位置の行インデックスを取得。該当行がない時は-1が返ってくる。
 			if rowindex>-1:  # クリックした位置に行が存在する時。
