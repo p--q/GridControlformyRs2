@@ -79,6 +79,7 @@ def createDialog(xscriptcontext, enhancedmouseevent, dialogtitle, defaultrows=No
 		windowlistener = WindowListener(controlcontainer)
 		dialogwindow.addWindowListener(windowlistener) # setVisible(True)でも呼び出されるので、その後でリスナーを追加する。		
 		dialogstate = getSavedData(doc, "dialogstate_{}".format(dialogtitle))  # 保存データを取得。
+		flg = True  # スクロールを下までするかのフラグ。
 		if dialogstate is not None:  # 保存してあるダイアログの状態がある時。
 			checkbox1sate = dialogstate.get("CheckBox1sate")  # サイズ復元、チェックボックス。キーがなければNoneが返る。	
 			if checkbox1sate is not None:  # サイズ復元、が保存されている時。
@@ -89,12 +90,14 @@ def createDialog(xscriptcontext, enhancedmouseevent, dialogtitle, defaultrows=No
 			if checkbox2sate is not None:  # 逐語検索、が保存されている時。
 				if checkbox2sate:  # チェックされている時逐次検索を有効にする。	
 					refreshRows(gridcontrol1, [i for i in DATAROWS if i[0].startswith(txt)])  # txtで始まっている行だけに絞る。txtが空文字の時はすべてTrueになる。
+					flg =False  # すでにスクロールしているのでフラグを倒す。
 				checkboxcontrol2.setState(checkbox2sate)  # itemlistenerは発火しない。			
 		args = doc, controlcontainer, gridselectionlistener, actionlistener, dialogwindow, windowlistener, mouselistener, menulistener, textlistener, itemlistener
 		dialogframe.addCloseListener(CloseListener(args))  # CloseListener。ノンモダルダイアログのリスナー削除用。	
 		controlcontainer.setVisible(True)  # コントロールの表示。
 		dialogwindow.setVisible(True) # ウィンドウの表示。ここでウィンドウリスナーが発火する。
-		scrollDown(gridcontrol1)		
+		if flg:
+			scrollDown(gridcontrol1)		
 class ItemListener(unohelper.Base, XItemListener):
 	def __init__(self, textlistener):
 		self.textlistener = textlistener
@@ -105,18 +108,47 @@ class ItemListener(unohelper.Base, XItemListener):
 			txt = checkboxcontrol2.getContext().getControl("Edit1").getText()
 			refreshRows(gridcontrol1, [i for i in DATAROWS if i[0].startswith(txt)])  # txtで始まっている行だけに絞る。txtが空文字の時はすべてTrueになる。
 		else:
-			refreshRows(gridcontrol1, DATAROWS)
+			griddatamodel = gridcontrol1.getModel().getPropertyValue("GridDataModel")  # GridDataModelを取得。
+			griddatamodel.removeAllRows()  # グリッドコントロールの行を全削除。	
+			griddatamodel.addRows(("",)*len(DATAROWS), DATAROWS)  # グリッドに行を追加。
+			
+# 			refreshRows(gridcontrol1, DATAROWS)
+		
+			
+			
 	def disposing(self, eventobject):
 		pass
 def refreshRows(gridcontrol, datarows):	
-	griddatamodel = gridcontrol.getModel().getPropertyValue("GridDataModel")  # GridDataModelを取得。	
-	griddatamodel.removeAllRows()  # グリッドコントロールの行を全削除。	
+	
+# 	import pydevd; pydevd.settrace(stdoutToServer=True, stderrToServer=True)
+
+	griddatamodel = gridcontrol.getModel().getPropertyValue("GridDataModel")  # GridDataModelを取得。
 	if datarows:  # データ行がある時。
-		griddatamodel.addRows(("",)*len(datarows), datarows)  # グリッドに行を追加。
-		scrollDown(gridcontrol)  # グリッドコントロールを下までスクロール。
+		if datarows!=DATAROWS:  # グリッドコントロールの行とDATAROWSが一致していない時。
+			
+			lastindex = len(DATAROWS) - 1
+			for i, datarow in enumerate(reversed(DATAROWS)):
+				if datarow not in datarows:
+					griddatamodel.removeRow(lastindex-i)
+			
+# 			lastindex = len(DATAROWS) - 1
+# 			[griddatamodel.removeRow(lastindex-i) for i, datarow in enumerate(reversed(DATAROWS)) if datarow not in datarows]  # datarowsにない行を下からグリッドコントロールから削除する。
+
+			scrollDown(gridcontrol)	
+	else:  # すべての行がない時。
+		griddatamodel.removeAllRows()  # グリッドコントロールの行を全削除。	
+	
+# 	griddatamodel.removeAllRows()  # グリッドコントロールの行を全削除。	
+# 	if datarows:  # データ行がある時。
+# 		griddatamodel.addRows(("",)*len(datarows), datarows)  # グリッドに行を追加。
+# 		scrollDown(gridcontrol)  # グリッドコントロールを下までスクロール。
 class TextListener(unohelper.Base, XTextListener):
 	def __init__(self, xscriptcontext):
-		self.transliteration = fullwidth_halfwidth(xscriptcontext)
+		self.transliteration = fullwidth_halfwidth(xscriptcontext)		
+		
+# 		import pydevd; pydevd.settrace(stdoutToServer=True, stderrToServer=True)
+		
+		
 		self.history = ""  # 前値を保存する。
 	def textChanged(self, textevent):  # 複数回呼ばれるので前値との比較が必要。
 		editcontrol1 = textevent.Source
@@ -183,15 +215,29 @@ class ActionListener(unohelper.Base, XActionListener):
 				if txt:  # テキストボックスコントロールに文字列がある時。
 					txt = self.transliteration.transliterate(txt, 0, len(txt), [])[0]  # 半角に変換
 					datarows = DATAROWS
-					if datarows:  # すでにグリッドコントロールにデータがある時。
-						lastindex = len(datarows) - 1  # 最終インデックスを取得。
+					if DATAROWS:  # すでにグリッドコントロールにデータがある時。
+						lastindex = len(DATAROWS) - 1  # 最終インデックスを取得。
+						
+						gridcontrol1 = controlcontainer.getControl("Grid1")
 						[datarows.pop(lastindex-i) for i, datarow in enumerate(reversed(datarows)) if txt in datarow]  # txtがある行は後ろから削除する。
+						refreshRows(controlcontainer.getControl("Grid1"), datarows)
+						
+						
 					datarows.append((txt,))  # txtの行を追加。
-					gridcontrol1 = controlcontainer.getControl("Grid1")
-					refreshRows(gridcontrol1, datarows)
-					selection.setString(txt)  # 選択セルに代入。
+					gridcontrol1.getModel().getPropertyValue("GridDataModel").addRow("", (txt,))
+					
+# 					gridcontrol1 = controlcontainer.getControl("Grid1")
+# 					griddatamodel = gridcontrol1.getModel().getPropertyValue("GridDataModel")  # GridDataModelを取得。
+# 					griddatamodel.removeAllRows()  # グリッドコントロールの行を全削除。	
+# 					griddatamodel.addRows(("",)*len(datarows), datarows)  # グリッドに行を追加。						
+					
 					global DATAROWS
-					DATAROWS = datarows					
+					DATAROWS = datarows								
+				
+					
+# 					refreshRows(gridcontrol1, datarows)
+					selection.setString(txt)  # 選択セルに代入。
+					scrollDown(gridcontrol1)	
 				sheet = controller.getActiveSheet()
 				celladdress = selection.getCellAddress()
 				nextcell = sheet[celladdress.Row+1, celladdress.Column]  # 下のセルを取得。
@@ -262,7 +308,7 @@ class MouseListener(unohelper.Base, XMouseListener):
 					nexttxt = nextcell.getString()  # 下のセルの文字列を取得。
 					edit1 = gridcontrol.getContext().getControl("Edit1")  # テキストボックスコントロールを取得。				
 					edit1.setText(nexttxt)  # テキストボックスコントロールにセルの内容を取得。				
-		elif mouseevent.PopupTrigger:  # 右クリックの時。
+		elif mouseevent.Buttons==MouseButton.RIGHT:  # 右クリックの時。mouseevent.PopupTriggerはなぜかFalse。
 			rowindex = gridcontrol.getRowAtPoint(mouseevent.X, mouseevent.Y)  # クリックした位置の行インデックスを取得。該当行がない時は-1が返ってくる。
 			if rowindex>-1:  # クリックした位置に行が存在する時。
 				if not gridcontrol.isRowSelected(rowindex):  # クリックした位置の行が選択状態でない時。
@@ -324,6 +370,9 @@ class FrameActionListener(unohelper.Base, XFrameActionListener):
 		pass
 class GridSelectionListener(unohelper.Base, XGridSelectionListener):
 	def selectionChanged(self, gridselectionevent):  # 行を追加した時も発火する。
+		
+# 		import pydevd; pydevd.settrace(stdoutToServer=True, stderrToServer=True)
+		
 		gridcontrol = gridselectionevent.Source
 		selectedrowindexes = list(gridselectionevent.SelectedRowIndexes)  # 並べ替えるのでリストにして取得。
 		if not selectedrowindexes:  # 選択行がない時(選択行を削除した時)。
