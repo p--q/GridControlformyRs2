@@ -112,7 +112,7 @@ class ItemListener(unohelper.Base, XItemListener):
 			griddatamodel.removeAllRows()  # グリッドコントロールの行を全削除。	
 			griddatamodel.addRows(("",)*len(DATAROWS), DATAROWS)  # グリッドに行を追加。
 			
-# 			refreshRows(gridcontrol1, DATAROWS)
+
 		
 			
 			
@@ -125,30 +125,16 @@ def refreshRows(gridcontrol, datarows):
 	griddatamodel = gridcontrol.getModel().getPropertyValue("GridDataModel")  # GridDataModelを取得。
 	if datarows:  # データ行がある時。
 		if datarows!=DATAROWS:  # グリッドコントロールの行とDATAROWSが一致していない時。
-			
 			lastindex = len(DATAROWS) - 1
 			for i, datarow in enumerate(reversed(DATAROWS)):
 				if datarow not in datarows:
 					griddatamodel.removeRow(lastindex-i)
-			
-# 			lastindex = len(DATAROWS) - 1
-# 			[griddatamodel.removeRow(lastindex-i) for i, datarow in enumerate(reversed(DATAROWS)) if datarow not in datarows]  # datarowsにない行を下からグリッドコントロールから削除する。
-
 			scrollDown(gridcontrol)	
 	else:  # すべての行がない時。
 		griddatamodel.removeAllRows()  # グリッドコントロールの行を全削除。	
-	
-# 	griddatamodel.removeAllRows()  # グリッドコントロールの行を全削除。	
-# 	if datarows:  # データ行がある時。
-# 		griddatamodel.addRows(("",)*len(datarows), datarows)  # グリッドに行を追加。
-# 		scrollDown(gridcontrol)  # グリッドコントロールを下までスクロール。
 class TextListener(unohelper.Base, XTextListener):
 	def __init__(self, xscriptcontext):
 		self.transliteration = fullwidth_halfwidth(xscriptcontext)		
-		
-# 		import pydevd; pydevd.settrace(stdoutToServer=True, stderrToServer=True)
-		
-		
 		self.history = ""  # 前値を保存する。
 	def textChanged(self, textevent):  # 複数回呼ばれるので前値との比較が必要。
 		editcontrol1 = textevent.Source
@@ -217,25 +203,13 @@ class ActionListener(unohelper.Base, XActionListener):
 					datarows = DATAROWS
 					if DATAROWS:  # すでにグリッドコントロールにデータがある時。
 						lastindex = len(DATAROWS) - 1  # 最終インデックスを取得。
-						
 						gridcontrol1 = controlcontainer.getControl("Grid1")
 						[datarows.pop(lastindex-i) for i, datarow in enumerate(reversed(datarows)) if txt in datarow]  # txtがある行は後ろから削除する。
 						refreshRows(controlcontainer.getControl("Grid1"), datarows)
-						
-						
 					datarows.append((txt,))  # txtの行を追加。
 					gridcontrol1.getModel().getPropertyValue("GridDataModel").addRow("", (txt,))
-					
-# 					gridcontrol1 = controlcontainer.getControl("Grid1")
-# 					griddatamodel = gridcontrol1.getModel().getPropertyValue("GridDataModel")  # GridDataModelを取得。
-# 					griddatamodel.removeAllRows()  # グリッドコントロールの行を全削除。	
-# 					griddatamodel.addRows(("",)*len(datarows), datarows)  # グリッドに行を追加。						
-					
 					global DATAROWS
 					DATAROWS = datarows								
-				
-					
-# 					refreshRows(gridcontrol1, datarows)
 					selection.setString(txt)  # 選択セルに代入。
 					scrollDown(gridcontrol1)	
 				sheet = controller.getActiveSheet()
