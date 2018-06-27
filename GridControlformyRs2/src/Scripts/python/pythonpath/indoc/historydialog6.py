@@ -104,8 +104,19 @@ class ItemListener(unohelper.Base, XItemListener):
 	def itemStateChanged(self, itemevent):  
 		checkboxcontrol2 = itemevent.Source
 		gridcontrol1 = checkboxcontrol2.getContext().getControl("Grid1")
-		if checkboxcontrol2.getState():
-			txt = checkboxcontrol2.getContext().getControl("Edit1").getText()
+		if checkboxcontrol2.getState():  # 逐語検索にチェックを付けた時。
+			txt = checkboxcontrol2.getContext().getControl("Edit1").getText()  # テキストボックスの文字列を取得。
+			griddatamodel = gridcontrol1.getModel().getPropertyValue("GridDataModel")  # GridDataModelを取得。
+			for i in range(len(DATAROWS)-1, -1 -1):  # すでにある行の最後からインデックスを取得。
+				if not DATAROWS[i][0].startswith(txt):  # txtで始まっていない時。
+					griddatamodel.removeRow(i)
+					
+					
+
+
+			
+			
+			
 			refreshRows(gridcontrol1, [i for i in DATAROWS if i[0].startswith(txt)])  # txtで始まっている行だけに絞る。txtが空文字の時はすべてTrueになる。
 		else:
 			griddatamodel = gridcontrol1.getModel().getPropertyValue("GridDataModel")  # GridDataModelを取得。

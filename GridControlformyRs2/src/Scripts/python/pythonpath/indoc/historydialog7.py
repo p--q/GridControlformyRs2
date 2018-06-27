@@ -16,7 +16,7 @@ from com.sun.star.util import MeasureUnit  # 定数
 from com.sun.star.view.SelectionType import MULTI  # enum 
 from com.sun.star.lang import Locale  # Struct
 SHEETNAME = "config"  # データを保存するシート名。
-DATAROWS = []  # グリッドコントロールのデータ行。複数クラスからアクセスするのでグローバルにしないといけない。
+DATAROWS = []  # グリッドコントロールのデータ行、タプルのタプルやリストのタプルやリストのリスト、の可能性がある。複数クラスからアクセスするのでグローバルにしないといけない。
 def createDialog(xscriptcontext, enhancedmouseevent, dialogtitle, defaultrows=None):  # dialogtitleはダイアログのデータ保存名に使うのでユニークでないといけない。defaultrowsはグリッドコントロールのデフォルトデータ。
 	ctx = xscriptcontext.getComponentContext()  # コンポーネントコンテクストの取得。
 	smgr = ctx.getServiceManager()  # サービスマネージャーの取得。	
@@ -40,14 +40,13 @@ def createDialog(xscriptcontext, enhancedmouseevent, dialogtitle, defaultrows=No
 		controlcontainerprops = {"PositionX": 0, "PositionY": 0, "Width": XWidth(gridprops), "Height": YHeight(buttonprops, m), "BackgroundColor": 0xF0F0F0}  # コントロールコンテナの基本プロパティ。幅は右端のコントロールから取得。高さはコントロール追加後に最後に設定し直す。		
 		maTopx = createConverters(containerwindow)  # ma単位をピクセルに変換する関数を取得。
 		controlcontainer, addControl = controlcontainerMaCreator(ctx, smgr, maTopx, controlcontainerprops)  # コントロールコンテナの作成。		
-		gridselectionlistener = GridSelectionListener()
 		mouselistener = MouseListener(xscriptcontext)
 		menulistener = MenuListener(controlcontainer)  # コンテクストメニューにつけるリスナー。
 		actionlistener = ActionListener(xscriptcontext)  # ボタンコントロールにつけるリスナー。
 		items = ("選択行を削除", 0, {"setCommand": "delete"}),\
 				("全行を削除", 0, {"setCommand": "deleteall"})  # グリッドコントロールにつける右クリックメニュー。
 		mouselistener.gridpopupmenu = menuCreator(ctx, smgr)("PopupMenu", items, {"addMenuListener": menulistener})  # 右クリックでまず呼び出すポップアップメニュー。 
-		gridcontrol1 = addControl("Grid", gridprops, {"addMouseListener": mouselistener, "addSelectionListener": gridselectionlistener})  # グリッドコントロールの取得。gridは他のコントロールの設定に使うのでコピーを渡す。
+		gridcontrol1 = addControl("Grid", gridprops, {"addMouseListener": mouselistener})  # グリッドコントロールの取得。gridは他のコントロールの設定に使うのでコピーを渡す。
 		gridmodel = gridcontrol1.getModel()  # グリッドコントロールモデルの取得。
 		gridcolumn = gridmodel.getPropertyValue("ColumnModel")  # DefaultGridColumnModel
 		column0 = gridcolumn.createColumn()  # 列の作成。
@@ -59,7 +58,7 @@ def createDialog(xscriptcontext, enhancedmouseevent, dialogtitle, defaultrows=No
 		if datarows:  # 行のリストが取得出来た時。
 			griddatamodel.addRows(("",)*len(datarows), datarows)  # グリッドに行を追加。
 			global DATAROWS
-			DATAROWS = datarows
+			DATAROWS = datarows  # グリッドのデータをDATAROWSに反映。
 		textlistener = TextListener(xscriptcontext)	
 		addControl("Edit", textboxprops, {"addTextListener": textlistener})  
 		checkboxcontrol1 = addControl("CheckBox", checkboxprops1)  
@@ -90,7 +89,7 @@ def createDialog(xscriptcontext, enhancedmouseevent, dialogtitle, defaultrows=No
 				if checkbox2sate:  # チェックされている時逐次検索を有効にする。	
 					refreshRows(gridcontrol1, [i for i in DATAROWS if i[0].startswith(txt)])  # txtで始まっている行だけに絞る。txtが空文字の時はすべてTrueになる。
 				checkboxcontrol2.setState(checkbox2sate)  # itemlistenerは発火しない。			
-		args = doc, controlcontainer, gridselectionlistener, actionlistener, dialogwindow, windowlistener, mouselistener, menulistener, textlistener, itemlistener
+		args = doc, controlcontainer, actionlistener, dialogwindow, windowlistener, mouselistener, menulistener, textlistener, itemlistener
 		dialogframe.addCloseListener(CloseListener(args))  # CloseListener。ノンモダルダイアログのリスナー削除用。	
 		controlcontainer.setVisible(True)  # コントロールの表示。
 		dialogwindow.setVisible(True) # ウィンドウの表示。ここでウィンドウリスナーが発火する。
@@ -143,7 +142,7 @@ class CloseListener(unohelper.Base, XCloseListener):  # ノンモダルダイア
 		self.args = args
 	def queryClosing(self, eventobject, getsownership):  # ノンモダルダイアログを閉じる時に発火。
 		dialogframe = eventobject.Source
-		doc, controlcontainer, gridselectionlistener, actionlistener, dialogwindow, windowlistener, mouselistener, menulistener, textlistener, itemlistener = self.args
+		doc, controlcontainer, actionlistener, dialogwindow, windowlistener, mouselistener, menulistener, textlistener, itemlistener = self.args
 		size = controlcontainer.getSize()
 		checkboxcontrol2 = controlcontainer.getControl("CheckBox2")
 		checkboxcontrol2.removeItemListener(itemlistener)			
@@ -156,7 +155,6 @@ class CloseListener(unohelper.Base, XCloseListener):  # ノンモダルダイア
 		gridcontrol1 = controlcontainer.getControl("Grid1")
 		saveData(doc, "GridDatarows_{}".format(dialogtitle), DATAROWS)
 		mouselistener.gridpopupmenu.removeMenuListener(menulistener)
-		gridcontrol1.removeSelectionListener(gridselectionlistener)
 		gridcontrol1.removeMouseListener(mouselistener)
 		controlcontainer.getControl("Button1").removeActionListener(actionlistener)
 		controlcontainer.getControl("Edit1").removeTextListener(textlistener)
@@ -170,7 +168,11 @@ class ActionListener(unohelper.Base, XActionListener):
 	def __init__(self, xscriptcontext):
 		self.xscriptcontext = xscriptcontext
 		self.transliteration = fullwidth_halfwidth(xscriptcontext)
-	def actionPerformed(self, actionevent):
+	def actionPerformed(self, actionevent):  
+		
+		# 複数行選択の時はボタンを無効にする。
+		
+		
 		cmd = actionevent.ActionCommand
 		if cmd=="enter":
 			doc = self.xscriptcontext.getDocument()  
@@ -191,7 +193,7 @@ class ActionListener(unohelper.Base, XActionListener):
 					refreshRows(gridcontrol1, datarows)
 					selection.setString(txt)  # 選択セルに代入。
 					global DATAROWS
-					DATAROWS = datarows					
+					DATAROWS = datarows				
 				sheet = controller.getActiveSheet()
 				celladdress = selection.getCellAddress()
 				nextcell = sheet[celladdress.Row+1, celladdress.Column]  # 下のセルを取得。
@@ -245,7 +247,18 @@ class MouseListener(unohelper.Base, XMouseListener):
 		gridcontrol = mouseevent.Source  # グリッドコントロールを取得。
 		griddata = gridcontrol.getModel().getPropertyValue("GridDataModel")  # GridDataModelを取得。
 		if mouseevent.Buttons==MouseButton.LEFT:  # 左ボタンクリックの時。
-			if mouseevent.ClickCount==2:  # ダブルクリックの時。
+			if mouseevent.ClickCount==1:  # シングルクリックの時。
+				selectedrowindexes = list(gridcontrol.getSelectedRows())  # 選択行のインデックスをリストで取得。
+				if not selectedrowindexes:  # 選択行がない時(選択行を削除した時)。
+					return  # 何もしない		
+				selectedrowindexes.sort()  # 選択順にインデックスが入っているので昇順にソートする。
+				if selectedrowindexes[0]<0:  # 負数のインデックスがある時(すべての行を削除した後に行を追加した時など)。
+					gridcontrol.deselectAllRows()  # 選択状態を外して終了。
+					return
+				griddatamodel = gridcontrol.getModel().getPropertyValue("GridDataModel")
+				rowdata = griddatamodel.getRowData(selectedrowindexes[0])  # 選択行の最初の行のデータを取得。
+				gridcontrol.getContext().getControl("Edit1").setText(rowdata[0])  # テキストボックスに選択行の初行の文字列を代入。
+			elif mouseevent.ClickCount==2:  # ダブルクリックの時。
 				doc = self.xscriptcontext.getDocument()
 				selection = doc.getCurrentSelection()  # シート上で選択しているオブジェクトを取得。
 				if selection.supportsService("com.sun.star.sheet.SheetCell"):  # 選択オブジェクトがセルの時。
@@ -253,7 +266,7 @@ class MouseListener(unohelper.Base, XMouseListener):
 					if j<0:  # 負数の時は何もしない。
 						return
 					rowdata = griddata.getRowData(j)  # グリッドコントロールで選択している行のすべての列をタプルで取得。
-					selection.setString(rowdata[0])  # グリッドコントロールは1列と決めつける。
+					selection.setString(rowdata[0])  # グリッドコントロールは1列と決めつけて、その最初の要素をセルに代入。
 					controller = doc.getCurrentController()  # 現在のコントローラを取得。			
 					sheet = controller.getActiveSheet()
 					celladdress = selection.getCellAddress()
@@ -262,7 +275,7 @@ class MouseListener(unohelper.Base, XMouseListener):
 					nexttxt = nextcell.getString()  # 下のセルの文字列を取得。
 					edit1 = gridcontrol.getContext().getControl("Edit1")  # テキストボックスコントロールを取得。				
 					edit1.setText(nexttxt)  # テキストボックスコントロールにセルの内容を取得。				
-		elif mouseevent.PopupTrigger:  # 右クリックの時。
+		elif mouseevent.Buttons==MouseButton.RIGHT:  # 右ボタンクリックの時。mouseevent.PopupTriggerではサブジェクトによってはTrueにならないので使わない。
 			rowindex = gridcontrol.getRowAtPoint(mouseevent.X, mouseevent.Y)  # クリックした位置の行インデックスを取得。該当行がない時は-1が返ってくる。
 			if rowindex>-1:  # クリックした位置に行が存在する時。
 				if not gridcontrol.isRowSelected(rowindex):  # クリックした位置の行が選択状態でない時。
@@ -286,7 +299,7 @@ class MenuListener(unohelper.Base, XMenuListener):
 	def itemSelected(self, menuevent):  # PopupMenuの項目がクリックされた時。どこのコントロールのメニューかを知る方法はない。
 		cmd = menuevent.Source.getCommand(menuevent.MenuId)
 		controlcontainer = self.controlcontainer
-		datarows = DATAROWS
+		datarows = list(DATAROWS)
 		peer = controlcontainer.getPeer()  # ピアを取得。	
 		gridcontrol = controlcontainer.getControl("Grid1")  # グリッドコントロールを取得。
 		griddatamodel = gridcontrol.getModel().getPropertyValue("GridDataModel")  # GridDataModelを取得。					
@@ -294,19 +307,31 @@ class MenuListener(unohelper.Base, XMenuListener):
 			msg = "選択行を削除しますか?"
 			msgbox = peer.getToolkit().createMessageBox(peer, QUERYBOX, MessageBoxButtons.BUTTONS_YES_NO, SHEETNAME, msg)
 			if msgbox.execute()==MessageBoxResults.YES:		
-				selectedrows = gridcontrol.getSelectedRows() if griddatamodel.RowCount>1 else (0,)  # 選択行インデックスのタプルを取得。1行だけの時はgetSelectedRows()で取得できない。
-				for i in reversed(selectedrows):  # 選択した行インデックスを後ろから取得。逐次検索のときはグリッドコントロールとDATAROWSが一致しないので別に処理する。
-					datarows.remove(list(griddatamodel.getRowData(i)))  # 削除するデータ行と一致する要素をDATAROWSから削除。
-					griddatamodel.removeRow(i)  # グリッドコントロールから選択行を削除。
+				selectedrows = gridcontrol.getSelectedRows()  # 選択行インデックスのタプルを取得。
+				if griddatamodel.RowCount==len(datarows):  # グリッドコントロールとDATAROWSの行数が一致している時。
+					[datarows.pop(i) for i in reversed(selectedrows)]
+					refreshRows(gridcontrol, datarows)
+				else:
+					for i in reversed(selectedrows):  # 選択した行インデックスを後ろから取得。逐次検索のときはグリッドコントロールとDATAROWSが一致しないので別に処理する。
+						d = griddatamodel.getRowData(i)[0]  # タプルが返るのでその先頭の要素を取得。
+						datarows = [j for j in datarows if not d in j]  # dが要素にある行を除いて取得。
+						griddatamodel.removeRow(i)  # グリッドコントロールから選択行を削除。
 		elif cmd=="deleteall":  # 全行を削除する。  	
-			msg = "すべての行を削除しますか?"
+			msg = "表示しているすべての行を削除しますか?"
 			msgbox = peer.getToolkit().createMessageBox(peer, QUERYBOX, MessageBoxButtons.BUTTONS_YES_NO, SHEETNAME, msg)
 			if msgbox.execute()==MessageBoxResults.YES:		
-				msg = "本当にすべての行を削除しますか？\n削除したデータは取り戻せません。"
+				msg = "本当に表示しているすべての行を削除しますか？\n削除したデータは取り戻せません。"
 				msgbox = peer.getToolkit().createMessageBox(peer, QUERYBOX, MessageBoxButtons.BUTTONS_YES_NO, SHEETNAME, msg)				
 				if msgbox.execute()==MessageBoxResults.YES:	
-					griddatamodel.removeAllRows()  # グリッドコントロールの行を全削除。
-					datarows.clear()  # 全データ行をクリア。	
+					if griddatamodel.RowCount==len(datarows):  # グリッドコントロールとDATAROWSの行数が一致している時。
+						griddatamodel.removeAllRows()  # グリッドコントロールの行を全削除。
+						datarows.clear()  # 全データ行をクリア。	
+					else:
+						gridcontrol.selectAllRows()  # すべての行を選択。
+						for i in reversed(selectedrows):  # 選択した行インデックスを後ろから取得。逐次検索のときはグリッドコントロールとDATAROWSが一致しないので別に処理する。
+							d = griddatamodel.getRowData(i)[0]  # タプルが返るのでその先頭の要素を取得。
+							datarows = [j for j in datarows if not d in j]  # dが要素にある行を除いて取得。
+						griddatamodel.removeAllRows()  # グリッドコントロールの行を全削除。							
 		global DATAROWS
 		DATAROWS = datarows			
 	def itemActivated(self, menuevent):
@@ -320,23 +345,6 @@ class FrameActionListener(unohelper.Base, XFrameActionListener):
 		if frameactionevent.Action==FRAME_UI_DEACTIVATING:  # フレームがアクティブでなくなった時。TopWindowListenerのwindowDeactivated()だとウィンドウタイトルバーをクリックしただけで発火してしまう。
 			frameactionevent.Frame.removeFrameActionListener(self)  # フレームにつけたリスナーを除去。
 			frameactionevent.Frame.close(True)
-	def disposing(self, eventobject):
-		pass
-class GridSelectionListener(unohelper.Base, XGridSelectionListener):
-	def selectionChanged(self, gridselectionevent):  # 行を追加した時も発火する。
-		gridcontrol = gridselectionevent.Source
-		selectedrowindexes = list(gridselectionevent.SelectedRowIndexes)  # 並べ替えるのでリストにして取得。
-		if not selectedrowindexes:  # 選択行がない時(選択行を削除した時)。
-			return  # 何もしない		
-		selectedrowindexes.sort()  # 選択順にインデックスが入っているので昇順にソートする。
-		if selectedrowindexes[0]<0:  # 負数のインデックスがある時(すべての行を削除した後に行を行を追加した時など)。
-			gridcontrol.deselectAllRows()  # 選択行がおかしいので選択状態を外して終了。
-			return
-		griddatamodel = gridcontrol.getModel().getPropertyValue("GridDataModel")
-		rowdata = griddatamodel.getRowData(selectedrowindexes[0])  # 選択行の最初の行のデータを取得。
-		gridcontrol.getContext().getControl("Edit1").setText(rowdata[0])  # テキストボックスに選択行の初行の文字列を代入。
-		if griddatamodel.RowCount==1:  # 1行しかない時はまた発火できるように選択を外す。
-			gridcontrol.deselectRow(0)  # 選択行の選択を外す。選択していない行を指定すると永遠ループになる。
 	def disposing(self, eventobject):
 		pass
 class WindowListener(unohelper.Base, XWindowListener):
