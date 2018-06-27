@@ -6,7 +6,6 @@ from com.sun.star.awt import XActionListener, XMenuListener, XMouseListener, XWi
 from com.sun.star.awt import MessageBoxButtons, MessageBoxResults, MouseButton, PopupMenuDirection, PosSize, ScrollBarOrientation  # 定数
 from com.sun.star.awt import Point, Rectangle, Selection  # Struct
 from com.sun.star.awt.MessageBoxType import QUERYBOX  # enum
-from com.sun.star.awt.grid import XGridSelectionListener
 from com.sun.star.beans import NamedValue  # Struct
 from com.sun.star.frame import XFrameActionListener
 from com.sun.star.frame.FrameAction import FRAME_UI_DEACTIVATING  # enum
@@ -169,10 +168,6 @@ class ActionListener(unohelper.Base, XActionListener):
 		self.xscriptcontext = xscriptcontext
 		self.transliteration = fullwidth_halfwidth(xscriptcontext)
 	def actionPerformed(self, actionevent):  
-		
-		# 複数行選択の時はボタンを無効にする。
-		
-		
 		cmd = actionevent.ActionCommand
 		if cmd=="enter":
 			doc = self.xscriptcontext.getDocument()  
@@ -245,17 +240,19 @@ class MouseListener(unohelper.Base, XMouseListener):
 		self.gridpopupmenu = None
 	def mousePressed(self, mouseevent):  # グリッドコントロールをクリックした時。コントロールモデルにはNameプロパティはない。
 		gridcontrol = mouseevent.Source  # グリッドコントロールを取得。
-		griddata = gridcontrol.getModel().getPropertyValue("GridDataModel")  # GridDataModelを取得。
+		griddatamodel = gridcontrol.getModel().getPropertyValue("GridDataModel")  # GridDataModelを取得。
 		if mouseevent.Buttons==MouseButton.LEFT:  # 左ボタンクリックの時。
 			if mouseevent.ClickCount==1:  # シングルクリックの時。
 				selectedrowindexes = list(gridcontrol.getSelectedRows())  # 選択行のインデックスをリストで取得。
 				if not selectedrowindexes:  # 選択行がない時(選択行を削除した時)。
-					return  # 何もしない		
+					# 1行目以外の行を選択して1行目を削除すると、ダイアログのどこをクリックしてもグリッドコントロールのマウスリスナーしか反応しなくなる。
+					# グリッドコントロールの行を選択すると他のコントロールが使えるようになる。
+					# 対策不能。ここで行を選択しなおしてもダメ、マウスリスナーを付け直してもダメ。removeAllRows()メソッドではなく、行をひとつずつインデックスで削除してもダメ。
+					return
 				selectedrowindexes.sort()  # 選択順にインデックスが入っているので昇順にソートする。
 				if selectedrowindexes[0]<0:  # 負数のインデックスがある時(すべての行を削除した後に行を追加した時など)。
 					gridcontrol.deselectAllRows()  # 選択状態を外して終了。
 					return
-				griddatamodel = gridcontrol.getModel().getPropertyValue("GridDataModel")
 				rowdata = griddatamodel.getRowData(selectedrowindexes[0])  # 選択行の最初の行のデータを取得。
 				gridcontrol.getContext().getControl("Edit1").setText(rowdata[0])  # テキストボックスに選択行の初行の文字列を代入。
 			elif mouseevent.ClickCount==2:  # ダブルクリックの時。
@@ -265,7 +262,7 @@ class MouseListener(unohelper.Base, XMouseListener):
 					j = gridcontrol.getCurrentRow()  # 選択行インデックス。負数が返ってくることがある。
 					if j<0:  # 負数の時は何もしない。
 						return
-					rowdata = griddata.getRowData(j)  # グリッドコントロールで選択している行のすべての列をタプルで取得。
+					rowdata = griddatamodel.getRowData(j)  # グリッドコントロールで選択している行のすべての列をタプルで取得。
 					selection.setString(rowdata[0])  # グリッドコントロールは1列と決めつけて、その最初の要素をセルに代入。
 					controller = doc.getCurrentController()  # 現在のコントローラを取得。			
 					sheet = controller.getActiveSheet()
