@@ -2,7 +2,7 @@
 # -*- coding: utf-8 -*-
 # import pydevd; pydevd.settrace(stdoutToServer=True, stderrToServer=True)
 from indoc import historydialog1, historydialog2, historydialog3, historydialog4, historydialog5, historydialog6, historydialog7,\
-	staticdialog1, staticdialog2, staticdialog3
+	staticdialog1, staticdialog2, staticdialog3, historydialog8
 from com.sun.star.awt import MouseButton  # 定数
 def mousePressed(enhancedmouseevent, xscriptcontext):  # マウスボタンを押した時。controllerにコンテナウィンドウはない。
 		selection = enhancedmouseevent.Target  # ターゲットのセルを取得。
@@ -21,7 +21,7 @@ def mousePressed(enhancedmouseevent, xscriptcontext):  # マウスボタンを�
 							historydialog2.createDialog(xscriptcontext, enhancedmouseevent, dialogname, defaultrows)	
 						elif dialogname=="historydialog3":   # 履歴ダイアログ。逐次検索機能追加。
 							historydialog3.createDialog(xscriptcontext, enhancedmouseevent, dialogname, defaultrows)	
-						elif dialogname=="historydialog4":   # 履歴ダイアログ。リファクタリング。削除のバグフィクス。
+						elif dialogname=="historydialog4":   # 履歴ダイアログ。リファクタリング。削除のバグフィクス。これ以降Windowsでのみクリックした位置が正しく取得できない。
 							historydialog4.createDialog(xscriptcontext, enhancedmouseevent, dialogname, defaultrows)						
 						elif dialogname=="staticdialog1":   # 静的ダイアログ。
 							staticdialog1.createDialog(xscriptcontext, enhancedmouseevent, dialogname, defaultrows)					
@@ -36,6 +36,8 @@ def mousePressed(enhancedmouseevent, xscriptcontext):  # マウスボタンを�
 							staticdialog2.createDialog(xscriptcontext, enhancedmouseevent, dialogname, defaultrows)						
 						elif dialogname=="staticdialog3":   # 静的ダイアログ。ポップアップメニューアイテムを名前で取得に変更。
 							staticdialog3.createDialog(xscriptcontext, enhancedmouseevent, dialogname, defaultrows)				
+						elif dialogname=="historydialog8":   # 履歴ダイアログ。GridSelectionListenerの使用中止。
+							historydialog8.createDialog(xscriptcontext, enhancedmouseevent, dialogname, defaultrows)					
 							
 							
 										
