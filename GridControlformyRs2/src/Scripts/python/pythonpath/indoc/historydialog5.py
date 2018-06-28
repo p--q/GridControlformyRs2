@@ -77,7 +77,9 @@ def createDialog(xscriptcontext, enhancedmouseevent, dialogtitle, defaultrows=No
 		controlcontainer.createPeer(toolkit, dialogwindow) # ウィンドウにコントロールを描画。 
 		dialogframe.addFrameActionListener(FrameActionListener())  # FrameActionListenerをダイアログフレームに追加。リスナーはフレームを閉じる時に削除するようにしている。
 		windowlistener = WindowListener(controlcontainer)
-		dialogwindow.addWindowListener(windowlistener) # setVisible(True)でも呼び出されるので、その後でリスナーを追加する。		
+		dialogwindow.addWindowListener(windowlistener) # setVisible(True)でも呼び出されるので、その後でリスナーを追加する。	
+		controlcontainer.setVisible(True)  # コントロールの表示。
+		dialogwindow.setVisible(True) # ウィンドウの表示。ここでウィンドウリスナーが発火する。Windows10ではdialogwindow.setPosSize()より前に表示しないと位置がおかしくなる。	
 		dialogstate = getSavedData(doc, "dialogstate_{}".format(dialogtitle))  # 保存データを取得。
 		if dialogstate is not None:  # 保存してあるダイアログの状態がある時。
 			checkbox1sate = dialogstate.get("CheckBox1sate")  # サイズ復元、チェックボックス。キーがなければNoneが返る。	
@@ -92,8 +94,6 @@ def createDialog(xscriptcontext, enhancedmouseevent, dialogtitle, defaultrows=No
 				checkboxcontrol2.setState(checkbox2sate)  # itemlistenerは発火しない。			
 		args = doc, controlcontainer, gridselectionlistener, actionlistener, dialogwindow, windowlistener, mouselistener, menulistener, textlistener, itemlistener
 		dialogframe.addCloseListener(CloseListener(args))  # CloseListener。ノンモダルダイアログのリスナー削除用。	
-		controlcontainer.setVisible(True)  # コントロールの表示。
-		dialogwindow.setVisible(True) # ウィンドウの表示。ここでウィンドウリスナーが発火する。
 		scrollDown(gridcontrol1)		
 class ItemListener(unohelper.Base, XItemListener):
 	def __init__(self, textlistener):

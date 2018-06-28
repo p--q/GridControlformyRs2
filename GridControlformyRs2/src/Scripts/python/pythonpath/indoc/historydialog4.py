@@ -77,12 +77,14 @@ def createDialog(xscriptcontext, enhancedmouseevent, dialogtitle, defaultrows=No
 		dialogframe.addFrameActionListener(FrameActionListener())  # FrameActionListenerをダイアログフレームに追加。リスナーはフレームを閉じる時に削除するようにしている。
 		windowlistener = WindowListener(controlcontainer)
 		dialogwindow.addWindowListener(windowlistener) # setVisible(True)でも呼び出されるので、その後でリスナーを追加する。		
+		controlcontainer.setVisible(True)  # コントロールの表示。
+		dialogwindow.setVisible(True) # ウィンドウの表示。ここでウィンドウリスナーが発火する。Windows10ではdialogwindow.setPosSize()より前に表示しないと位置がおかしくなる。
 		dialogstate = getSavedData(doc, "dialogstate_{}".format(dialogtitle))  # 保存データを取得。
 		if dialogstate is not None:  # 保存してあるダイアログの状態がある時。
 			checkbox1sate = dialogstate.get("CheckBox1sate")  # サイズ復元、チェックボックス。キーがなければNoneが返る。	
 			if checkbox1sate is not None:  # サイズ復元、が保存されている時。
 				if checkbox1sate:  # サイズ復元されている時。
-					dialogwindow.setPosSize(0, 0, dialogstate["Width"], dialogstate["Height"], PosSize.SIZE)  # ウィンドウサイズを復元。
+					dialogwindow.setPosSize(0, 0, dialogstate["Width"], dialogstate["Height"], PosSize.SIZE)  # ウィンドウサイズを復元。WindowListenerが発火する。
 				checkboxcontrol1.setState(checkbox1sate)  # 状態を復元。	
 			checkbox2sate = dialogstate.get("CheckBox2sate")  # 逐語検索、チェックボックス。			
 			if checkbox2sate is not None:  # 逐語検索、が保存されている時。
@@ -91,8 +93,6 @@ def createDialog(xscriptcontext, enhancedmouseevent, dialogtitle, defaultrows=No
 				checkboxcontrol2.setState(checkbox2sate)  # itemlistenerが発火する。			
 		args = doc, controlcontainer, gridselectionlistener, actionlistener, dialogwindow, windowlistener, mouselistener, menulistener, textlistener, itemlistener
 		dialogframe.addCloseListener(CloseListener(args))  # CloseListener。ノンモダルダイアログのリスナー削除用。	
-		controlcontainer.setVisible(True)  # コントロールの表示。
-		dialogwindow.setVisible(True) # ウィンドウの表示。ここでウィンドウリスナーが発火する。
 		scrollDown(gridcontrol1)		
 class ItemListener(unohelper.Base, XItemListener):
 	def __init__(self, textlistener):

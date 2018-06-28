@@ -21,7 +21,7 @@ def mousePressed(enhancedmouseevent, xscriptcontext):  # マウスボタンを�
 							historydialog2.createDialog(xscriptcontext, enhancedmouseevent, dialogname, defaultrows)	
 						elif dialogname=="historydialog3":   # 履歴ダイアログ。逐次検索機能追加。
 							historydialog3.createDialog(xscriptcontext, enhancedmouseevent, dialogname, defaultrows)	
-						elif dialogname=="historydialog4":   # 履歴ダイアログ。リファクタリング。削除のバグフィクス。これ以降Windowsでのみクリックした位置が正しく取得できない。
+						elif dialogname=="historydialog4":   # 履歴ダイアログ。リファクタリング。削除のバグフィクス。
 							historydialog4.createDialog(xscriptcontext, enhancedmouseevent, dialogname, defaultrows)						
 						elif dialogname=="staticdialog1":   # 静的ダイアログ。
 							staticdialog1.createDialog(xscriptcontext, enhancedmouseevent, dialogname, defaultrows)					
@@ -36,7 +36,7 @@ def mousePressed(enhancedmouseevent, xscriptcontext):  # マウスボタンを�
 							staticdialog2.createDialog(xscriptcontext, enhancedmouseevent, dialogname, defaultrows)						
 						elif dialogname=="staticdialog3":   # 静的ダイアログ。ポップアップメニューアイテムを名前で取得に変更。
 							staticdialog3.createDialog(xscriptcontext, enhancedmouseevent, dialogname, defaultrows)				
-						elif dialogname=="historydialog8":   # 履歴ダイアログ。GridSelectionListenerの使用中止。
+						elif dialogname=="historydialog8":   # 履歴ダイアログ。
 							historydialog8.createDialog(xscriptcontext, enhancedmouseevent, dialogname, defaultrows)					
 							
 							
