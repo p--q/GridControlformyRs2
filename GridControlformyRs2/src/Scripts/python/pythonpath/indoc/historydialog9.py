@@ -46,7 +46,8 @@ def createDialog(xscriptcontext, enhancedmouseevent, dialogtitle, defaultrows=No
 	items = ("選択行を削除", 0, {"setCommand": "delete"}),\
 			("全行を削除", 0, {"setCommand": "deleteall"})  # グリッドコントロールにつける右クリックメニュー。
 	mouselistener.gridpopupmenu = menuCreator(ctx, smgr)("PopupMenu", items, {"addMenuListener": menulistener})  # 右クリックでまず呼び出すポップアップメニュー。 
-	gridcontrol1 = addControl("Grid", gridprops, {"addMouseListener": mouselistener})  # グリッドコントロールの取得。gridは他のコントロールの設定に使うのでコピーを渡す。
+	mousemotionlistener = MouseMotionListener()
+	gridcontrol1 = addControl("Grid", gridprops, {"addMouseListener": mouselistener, "addMouseMotionListener": mousemotionlistener})  # グリッドコントロールの取得。gridは他のコントロールの設定に使うのでコピーを渡す。
 	gridmodel = gridcontrol1.getModel()  # グリッドコントロールモデルの取得。
 	gridcolumn = gridmodel.getPropertyValue("ColumnModel")  # DefaultGridColumnModel
 	gridcolumn.addColumn(gridcolumn.createColumn())  # 列を追加。
@@ -76,7 +77,7 @@ def createDialog(xscriptcontext, enhancedmouseevent, dialogtitle, defaultrows=No
 	dialogframe.addFrameActionListener(FrameActionListener())  # FrameActionListenerをダイアログフレームに追加。リスナーはフレームを閉じる時に削除するようにしている。
 	windowlistener = WindowListener(controlcontainer)
 	dialogwindow.addWindowListener(windowlistener) # setVisible(True)でも呼び出される。
-	args = doc, controlcontainer, actionlistener, dialogwindow, windowlistener, mouselistener, menulistener, textlistener, itemlistener
+	args = doc, controlcontainer, actionlistener, dialogwindow, windowlistener, mouselistener, menulistener, textlistener, itemlistener, mousemotionlistener
 	dialogframe.addCloseListener(CloseListener(args))  # CloseListener。ノンモダルダイアログのリスナー削除用。		
 	controlcontainer.setVisible(True)  # コントロールの表示。
 	dialogwindow.setVisible(True) # ウィンドウの表示。ここでウィンドウリスナーが発火する。
@@ -150,7 +151,7 @@ class CloseListener(unohelper.Base, XCloseListener):  # ノンモダルダイア
 		self.args = args
 	def queryClosing(self, eventobject, getsownership):  # ノンモダルダイアログを閉じる時に発火。
 		dialogframe = eventobject.Source
-		doc, controlcontainer, actionlistener, dialogwindow, windowlistener, mouselistener, menulistener, textlistener, itemlistener = self.args
+		doc, controlcontainer, actionlistener, dialogwindow, windowlistener, mouselistener, menulistener, textlistener, itemlistener, mousemotionlistener = self.args
 		size = controlcontainer.getSize()
 		checkboxcontrol2 = controlcontainer.getControl("CheckBox2")
 		checkboxcontrol2.removeItemListener(itemlistener)			
@@ -164,6 +165,7 @@ class CloseListener(unohelper.Base, XCloseListener):  # ノンモダルダイア
 		saveData(doc, "GridDatarows_{}".format(dialogtitle), DATAROWS)
 		mouselistener.gridpopupmenu.removeMenuListener(menulistener)
 		gridcontrol1.removeMouseListener(mouselistener)
+		gridcontrol1.removeMousMouseMotionListener(mousemotionlistener)
 		controlcontainer.getControl("Button1").removeActionListener(actionlistener)
 		controlcontainer.getControl("Edit1").removeTextListener(textlistener)
 		dialogwindow.removeWindowListener(windowlistener)
@@ -244,6 +246,31 @@ def getSavedData(doc, rangename):  # configシートのragenameからデータ�
 				except json.JSONDecodeError:
 					import traceback; traceback.print_exc()  # これがないとPyDevのコンソールにトレースバックが表示されない。stderrToServer=Trueが必須。
 	return None  # 保存された行が取得できない時はNoneを返す。
+class MouseMotionListener(unohelper.Base, XMouseMotionListener):	
+	def mouseDragged(self, mouseevent):
+		gridcontrol = mouseevent.Source  # グリッドコントロールを取得。
+		rowindex = gridcontrol.getRowAtPoint(mouseevent.X, mouseevent.Y)  # クリックした位置の行インデックスを取得。該当行がない時は-1が返ってくる。
+		if rowindex>-1:  # クリックした位置に行が存在する時。
+			if mouseevent.Buttons==MouseButton.LEFT:  # 左ボタンクリックの時。
+				gridcontrol.selectRow(rowindex)  # その行を選択する。
+			elif mouseevent.Buttons==MouseButton.MIDDLE:  # 中ボタンクリックの時。
+				
+				# 解除するいい方法がない。グリッドコントロールのデフォルトの挙動と重なるため。
+				
+				
+				
+				
+				gridcontrol.deselectRow(rowindex)  # その行の選択状態を解除する。
+
+			
+
+			
+			
+			
+	def mouseMoved(self, mouseevent):
+		pass
+	def disposing(self, eventobject):
+		pass	
 class MouseListener(unohelper.Base, XMouseListener):  
 	def __init__(self, xscriptcontext): 	
 		self.xscriptcontext = xscriptcontext

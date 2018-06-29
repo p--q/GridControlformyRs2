@@ -38,7 +38,7 @@ def mousePressed(enhancedmouseevent, xscriptcontext):  # マウスボタンを�
 							staticdialog3.createDialog(xscriptcontext, enhancedmouseevent, dialogname, defaultrows)				
 						elif dialogname=="historydialog8":   # 履歴ダイアログ。選択行インデックスの取得方法、スクロール、を修正。
 							historydialog8.createDialog(xscriptcontext, enhancedmouseevent, dialogname, defaultrows)					
-						elif dialogname=="historydialog9":   # 履歴ダイアログ。
+						elif dialogname=="historydialog9":   # 履歴ダイアログ。マウスドラッグで行選択できるようにしようとしたがうまくできていない。
 							historydialog9.createDialog(xscriptcontext, enhancedmouseevent, dialogname, defaultrows)								
 							
 										
