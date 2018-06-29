@@ -2,7 +2,7 @@
 # -*- coding: utf-8 -*-
 import unohelper, json  # import pydevd; pydevd.settrace(stdoutToServer=True, stderrToServer=True)
 from com.sun.star.accessibility import AccessibleRole  # 定数
-from com.sun.star.awt import XActionListener, XMenuListener, XMouseListener, XWindowListener, XTextListener, XItemListener
+from com.sun.star.awt import XActionListener, XMenuListener, XMouseListener, XMouseMotionListener, XWindowListener, XTextListener, XItemListener
 from com.sun.star.awt import MessageBoxButtons, MessageBoxResults, MouseButton, PopupMenuDirection, PosSize, ScrollBarOrientation  # 定数
 from com.sun.star.awt import Point, Rectangle, Selection  # Struct
 from com.sun.star.awt.MessageBoxType import QUERYBOX  # enum
@@ -92,7 +92,7 @@ def createDialog(xscriptcontext, enhancedmouseevent, dialogtitle, defaultrows=No
 			if checkbox2sate:  # チェックされている時逐次検索を有効にする。	
 				refreshRows(gridcontrol1, [i for i in DATAROWS if i[0].startswith(txt)])  # txtで始まっている行だけに絞る。txtが空文字の時はすべてTrueになる。
 			checkboxcontrol2.setState(checkbox2sate)  # itemlistenerは発火しない。			
-	scrollDown(gridcontrol1)		
+	scrollDown(gridcontrol1)	
 class ItemListener(unohelper.Base, XItemListener):
 	def __init__(self, textlistener):
 		self.textlistener = textlistener

@@ -147,8 +147,20 @@ class ActionListener(unohelper.Base, XActionListener):
 		self.datarows = datarows
 	def actionPerformed(self, actionevent):
 		cmd = actionevent.ActionCommand
-		griddatamodel = self.gridcontrol.getModel().getPropertyValue("GridDataModel")  # GridDataModelを取得。		
-		selectedrowindexes = self.gridcontrol.getSelectedRows() if griddatamodel.RowCount>1 else (0,)  # 選択行インデックスのタプルを取得。1行だけの時はgetSelectedRows()で取得できない。
+		griddatamodel = self.gridcontrol.getModel().getPropertyValue("GridDataModel")  # GridDataModelを取得。	
+		selectedrowindexes = getSelectedRowIndexes(self.gridcontrol)
+		if cmd=="insert":  # 選択行の位置に追加する。複数行を選択している時はボタンを無効にしてある。選択行がない時は最下行に追加する。
+			txt = actionevent.Source.getContext().getControl("Edit1").getText()  # テキストボックスコントロールの文字列を取得。
+			if selectedrowindexes:  # 選択行がある時。
+				i = selectedrowindexes[0]
+				griddatamodel.insertRow(i, "", (txt,))
+				self.datarows.insert(i, (txt,))
+			else:  # 選択行がない時。
+				griddatamodel.addRow("", (txt,))
+				self.datarows.append((txt,))	
+			return	
+		if not selectedrowindexes:
+			return  # 選択行がない時はここで終わる。
 		if cmd=="up":  # 先頭行や連続していない複数行を選択している時はボタンを無効にしてある。
 			j = selectedrowindexes[0]  # 選択行の先頭行インデックスを取得。
 			datarowsToMove = self.datarows[j:selectedrowindexes[-1]+1]  # 移動させる行のリストを取得。
@@ -170,21 +182,12 @@ class ActionListener(unohelper.Base, XActionListener):
 			c = len(selectedrowindexes)
 			firstrow = j + 2- c # 選択開始行を取得。
 			[self.gridcontrol.selectRow(i) for i in range(firstrow, firstrow+c)]
-		elif cmd=="insert":  # 選択行の位置に追加する。複数行を選択している時はボタンを無効にしてある。選択行がない時は最下行に追加する。
-			txt = actionevent.Source.getContext().getControl("Edit1").getText()  # テキストボックスコントロールの文字列を取得。
-			if selectedrowindexes:  # 選択行がある時。
-				i = selectedrowindexes[0]
-				griddatamodel.insertRow(i, "", (txt,))
-				self.datarows.insert(i, (txt,))
-			else:  # 選択行がない時。
-				griddatamodel.addRow("", (txt,))
-				self.datarows.append((txt,))
 		elif cmd=="delete":
 			peer = self.gridcontrol.getPeer()  # ピアを取得。			
 			msg = "選択行を削除しますか?"
 			msgbox = peer.getToolkit().createMessageBox(peer, QUERYBOX, MessageBoxButtons.BUTTONS_YES_NO, SHEETNAME, msg)
 			if msgbox.execute()==MessageBoxResults.YES:		
-				for i in reversed(selectedrowindexes):  # 選択した行インデックスを後ろから取得。
+				for i in selectedrowindexes[::-1]:  # 選択した行インデックスを後ろから取得。
 					self.datarows.pop(i)
 					griddatamodel.removeRow(i)  # グリッドコントロールから選択行を削除。
 	def disposing(self, eventobject):
@@ -233,13 +236,9 @@ class MouseListener(unohelper.Base, XMouseListener):
 		optioncontrolcontainer = self.optioncontrolcontainer
 		if mouseevent.Buttons==MouseButton.LEFT:
 			if mouseevent.ClickCount==1:  # シングルクリックの時。
-				selectedrowindexes = list(gridcontrol.getSelectedRows())  # 選択行のインデックスをリストで取得。
+				selectedrowindexes = getSelectedRowIndexes(gridcontrol)
 				if not selectedrowindexes:  # 選択行がない時(選択行を削除した時)。
 					return  # 何もしない		
-				selectedrowindexes.sort()  # 選択順にインデックスが入っているので昇順にソートする。
-				if selectedrowindexes[0]<0:  # 負数のインデックスがある時(すべての行を削除した後に行を行を追加した時など)。
-					gridcontrol.deselectAllRows()  # 選択行がおかしいので選択状態を外して終了。
-					return
 				upbuttoncontrol = optioncontrolcontainer.getControl("Button1")
 				downbuttoncontrol = optioncontrolcontainer.getControl("Button2")
 				insertbuttoncontrol = optioncontrolcontainer.getControl("Button3")
@@ -324,6 +323,13 @@ class MenuListener(unohelper.Base, XMenuListener):
 		pass   
 	def disposing(self, eventobject):
 		pass
+def getSelectedRowIndexes(gridcontrol):  # グリッドコントロールの選択行インデックスを返す。昇順で返す。負数のインデックスがある時は要素をクリアする。
+	selectedrowindexes = list(gridcontrol.getSelectedRows())  # 選択行のインデックスをリストで取得。
+	selectedrowindexes.sort()  # 選択順にインデックスが入っているので昇順にソートする。
+	if selectedrowindexes and selectedrowindexes[0]<0:  # 負数のインデックスがある時(すべての行を削除した後に行を追加した時など)。
+		gridcontrol.deselectAllRows()  # 選択状態を外す。
+		selectedrowindexes.clear()  # 選択行インデックスをクリア。
+	return selectedrowindexes
 class FrameActionListener(unohelper.Base, XFrameActionListener):
 	def frameAction(self, frameactionevent):
 		if frameactionevent.Action==FRAME_UI_DEACTIVATING:  # フレームがアクティブでなくなった時。TopWindowListenerのwindowDeactivated()だとウィンドウタイトルバーをクリックしただけで発火してしまう。

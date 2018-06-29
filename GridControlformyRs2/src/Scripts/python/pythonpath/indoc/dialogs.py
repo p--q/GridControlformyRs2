@@ -2,7 +2,7 @@
 # -*- coding: utf-8 -*-
 # import pydevd; pydevd.settrace(stdoutToServer=True, stderrToServer=True)
 from indoc import historydialog1, historydialog2, historydialog3, historydialog4, historydialog5, historydialog6, historydialog7,\
-	staticdialog1, staticdialog2, staticdialog3, historydialog8
+	staticdialog1, staticdialog2, staticdialog3, historydialog8, historydialog9
 from com.sun.star.awt import MouseButton  # 定数
 def mousePressed(enhancedmouseevent, xscriptcontext):  # マウスボタンを押した時。controllerにコンテナウィンドウはない。
 		selection = enhancedmouseevent.Target  # ターゲットのセルを取得。
@@ -36,9 +36,10 @@ def mousePressed(enhancedmouseevent, xscriptcontext):  # マウスボタンを�
 							staticdialog2.createDialog(xscriptcontext, enhancedmouseevent, dialogname, defaultrows)						
 						elif dialogname=="staticdialog3":   # 静的ダイアログ。ポップアップメニューアイテムを名前で取得に変更。
 							staticdialog3.createDialog(xscriptcontext, enhancedmouseevent, dialogname, defaultrows)				
-						elif dialogname=="historydialog8":   # 履歴ダイアログ。
+						elif dialogname=="historydialog8":   # 履歴ダイアログ。選択行インデックスの取得方法、スクロール、を修正。
 							historydialog8.createDialog(xscriptcontext, enhancedmouseevent, dialogname, defaultrows)					
-							
+						elif dialogname=="historydialog9":   # 履歴ダイアログ。
+							historydialog9.createDialog(xscriptcontext, enhancedmouseevent, dialogname, defaultrows)								
 							
 										
 					return False  # セル編集モードにしない。
