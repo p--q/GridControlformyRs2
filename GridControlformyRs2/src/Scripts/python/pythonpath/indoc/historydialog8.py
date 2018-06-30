@@ -389,6 +389,7 @@ class WindowListener(unohelper.Base, XWindowListener):
 			applyDiff(checkboxcontrol2, PosSize.Y)
 			applyDiff(buttoncontrol1, PosSize.POS)		
 			self.oldwidth, self.oldheight = newwidth, newheight  # 次の変更前の値として取得。
+		scrollDown(gridcontrol1)
 	def windowMoved(self, windowevent):
 		pass
 	def windowShown(self, eventobject):
