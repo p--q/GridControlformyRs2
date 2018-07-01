@@ -1,6 +1,7 @@
 #!/opt/libreoffice5.4/program/python
 # -*- coding: utf-8 -*-
 import unohelper, json  # import pydevd; pydevd.settrace(stdoutToServer=True, stderrToServer=True)
+from datetime import date, timedelta
 from com.sun.star.awt import XActionListener, XMenuListener, XMouseListener, XWindowListener
 from com.sun.star.awt import MenuItemStyle, MessageBoxButtons, MessageBoxResults, MouseButton, PopupMenuDirection, PosSize  # 定数
 from com.sun.star.awt import MenuEvent, Point, Rectangle  # Struct
@@ -12,7 +13,7 @@ from com.sun.star.util import XCloseListener
 from com.sun.star.util import MeasureUnit  # 定数
 from com.sun.star.view.SelectionType import MULTI  # enum 
 SHEETNAME = "config"  # データを保存するシート名。
-def createDialog(xscriptcontext, enhancedmouseevent, dialogtitle, defaultrows=None):  # dialogtitleはダイアログのデータ保存名に使うのでユニークでないといけない。defaultrowsはグリッドコントロールのデフォルトデータ。
+def createDialog(xscriptcontext, enhancedmouseevent, dialogtitle, daycount=7):  # dialogtitleはダイアログのデータ保存名に使うのでユニークでないといけない。daycountは表示日数。
 	ctx = xscriptcontext.getComponentContext()  # コンポーネントコンテクストの取得。
 	smgr = ctx.getServiceManager()  # サービスマネージャーの取得。	
 	doc = xscriptcontext.getDocument()  # マクロを起動した時のドキュメントのモデルを取得。   
@@ -24,7 +25,7 @@ def createDialog(xscriptcontext, enhancedmouseevent, dialogtitle, defaultrows=No
 	maTopx = createConverters(containerwindow)  # ma単位をピクセルに変換する関数を取得。
 	m = 2  # コントロール間の間隔。
 	h = 12  # コントロールの高さ
-	gridprops = {"PositionX": 0, "PositionY": 0, "Width": 50, "Height": 50, "ShowRowHeader": False, "ShowColumnHeader": False, "SelectionModel": MULTI}  # グリッドコントロールのプロパティ。
+	gridprops = {"PositionX": 0, "PositionY": 0, "Width": 75, "Height": 70, "ShowRowHeader": False, "ShowColumnHeader": False, "VScroll": False}  # グリッドコントロールのプロパティ。
 	controlcontainerprops = {"PositionX": 0, "PositionY": 0, "Width": XWidth(gridprops), "Height": YHeight(gridprops), "BackgroundColor": 0xF0F0F0}  # コントロールコンテナの基本プロパティ。幅は右端のコントロールから取得。高さはコントロール追加後に最後に設定し直す。		
 	controlcontainer, addControl = controlcontainerMaCreator(ctx, smgr, maTopx, controlcontainerprops)  # コントロールコンテナの作成。		
 	menulistener = MenuListener()  # コンテクストメニューにつけるリスナー。
@@ -32,18 +33,40 @@ def createDialog(xscriptcontext, enhancedmouseevent, dialogtitle, defaultrows=No
 			("オプション表示", MenuItemStyle.CHECKABLE+MenuItemStyle.AUTOCHECK, {"checkItem": False})  # グリッドコントロールのコンテクストメニュー。XMenuListenerのmenuevent.MenuIdでコードを実行する。
 	gridpopupmenu = menuCreator(ctx, smgr)("PopupMenu", items, {"addMenuListener": menulistener})  # 右クリックでまず呼び出すポップアップメニュー。 
 	mouselistener = MouseListener(xscriptcontext, gridpopupmenu)
-	gridcontrol1 = addControl("Grid", gridprops, {"addMouseListener": mouselistener})  # グリッドコントロールの取得。
+	
+	gridcontrol1 = addControl("Grid", gridprops.copy(), {"addMouseListener": mouselistener})  # グリッドコントロールの取得。
 	gridmodel = gridcontrol1.getModel()  # グリッドコントロールモデルの取得。
 	gridcolumn = gridmodel.getPropertyValue("ColumnModel")  # DefaultGridColumnModel
-	gridcolumn.addColumn(gridcolumn.createColumn())  # 列を追加。
+	column0 = gridcolumn.createColumn() # 列の作成。
+	column0.ColumnWidth = 20 # 列幅。
+	gridcolumn.addColumn(column0)  # 1列目を追加。
+	column1 = gridcolumn.createColumn() # 列の作成。
+	column1.ColumnWidth = gridprops["Width"] - column0.ColumnWidth #  列幅。列の合計がグリッドコントロールの幅に一致するようにする。
+	gridcolumn.addColumn(column1)  # 2列目を追加。
 	griddatamodel = gridmodel.getPropertyValue("GridDataModel")  # GridDataModel
-	datarows = getSavedData(doc, "GridDatarows_{}".format(dialogtitle))  # グリッドコントロールの行をconfigシートのragenameから取得する。	
-	if datarows is None and defaultrows is not None:  # 履歴がなくデフォルトdatarowsがあるときデフォルトデータを使用。
-		datarows = [i if isinstance(i, (list, tuple)) else (i,) for i in defaultrows]  # defaultrowsの要素をリストかタプルでなければタプルに変換する。
-	if datarows:  # 行のリストが取得出来た時。
-		griddatamodel.addRows(("",)*len(datarows), datarows)  # グリッドに行を追加。	
+	
+	
+# 	import pydevd; pydevd.settrace(stdoutToServer=True, stderrToServer=True)
+	
+	
+	dateformat = "%Y/%m/%d(%a)"
+	todaypos = daycount//2  # 今日の日付の位置を決定。切り下げ。
+	col0 = [""]*(todaypos-1)
+	col0.extend(("昨日", "今日", "明日"))
+	col0.extend([""]*(daycount-todaypos-2))
+	startday = date.today() - timedelta(days=1)*todaypos  # 開始dateを取得。
+	dategene = (startday+timedelta(days=i) for i in range(daycount))
+	col2gene = (i.strftime(dateformat) for i in dategene)
+	datarows = [i for i in zip(col0, col2gene)]
+	griddatamodel.addRows(("",)*len(datarows), datarows)  # グリッドに行を追加。	
+	
+	
+
 	controlcontainerwindowlistener = ControlContainerWindowListener(controlcontainer)		
 	controlcontainer.addWindowListener(controlcontainerwindowlistener)  # コントロールコンテナの大きさを変更するとグリッドコントロールの大きさも変更するようにする。
+	
+	
+	
 	textboxprops = {"PositionX": 0, "PositionY": m, "Height": h}  # テクストボックスコントロールのプロパティ。
 	checkboxprops1 = {"PositionX": 0, "PositionY": YHeight(textboxprops, m), "Width": 46, "Height": h, "Label": "~セルに追記", "State": 0} # セルに追記はデフォルトでは無効。
 	buttonprops1 = {"PositionX": XWidth(checkboxprops1), "PositionY": YHeight(textboxprops, m), "Width": 18, "Height": h+2, "Label": "上へ"}  # ボタンのプロパティ。PushButtonTypeの値はEnumではエラーになる。VerticalAlignではtextboxと高さが揃わない。
@@ -81,6 +104,10 @@ def createDialog(xscriptcontext, enhancedmouseevent, dialogtitle, defaultrows=No
 	dialogframe.addFrameActionListener(frameactionlistener)  # FrameActionListenerをダイアログフレームに追加。
 	controlcontainer.setVisible(True)  # コントロールの表示。
 	dialogwindow.setVisible(True) # ウィンドウの表示。これ以降WindowListenerが発火する。
+	
+	return
+
+	
 	windowlistener = WindowListener(controlcontainer, optioncontrolcontainer) # コンテナウィンドウからコントロールコンテナを取得する方法はないはずなので、ここで渡す。WindowListenerはsetVisible(True)で呼び出される。
 	dialogwindow.addWindowListener(windowlistener) # コンテナウィンドウにリスナーを追加する。
 	menulistener.args = dialogwindow, windowlistener
