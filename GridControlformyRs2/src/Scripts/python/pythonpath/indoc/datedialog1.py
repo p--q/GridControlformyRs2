@@ -47,11 +47,14 @@ def createDialog(xscriptcontext, enhancedmouseevent, dialogtitle):  # dialogtitl
 	column1.ColumnWidth = gridcontrolwidth - column0.ColumnWidth #  列幅。列の合計がグリッドコントロールの幅に一致するようにする。
 	gridcolumn.addColumn(column1)  # 2列目を追加。
 	griddatamodel = gridmodel.getPropertyValue("GridDataModel")  # GridDataModel
+	
+	
 	todayindex = 7//2  # 今日の日付の位置を決定。切り下げ。
 	col0 = [""]*7  # 全てに空文字を挿入。
 	col0[todayindex-1:todayindex+2] = "昨日", "今日", "明日"  # 列インデックス0に入れる文字列を取得。
 	startday = date.today() - timedelta(days=1)*todayindex  # 開始dateを取得。
 	addDays(griddatamodel, dateformat, startday, col0)  # グリッドコントロールに行を入れる。
+	
 	buttonprops1 = {"PositionX": 0, "PositionY": m, "Width": 30, "Height": h+2, "Label": "前週"}  # ボタンのプロパティ。PushButtonTypeの値はEnumではエラーになる。
 	buttonprops2 = {"PositionY": m, "Width": 30, "Height": h+2, "Label": "次週"}  # ボタンのプロパティ。PushButtonTypeの値はEnumではエラーになる。
 	buttonprops2.update({"PositionX": gridcontrolwidth-buttonprops2["Width"]})
@@ -170,6 +173,7 @@ class TextListener(unohelper.Base, XTextListener):
 		val = numericfield.getValue()  # 数値フィールドの値を取得。		
 		diff = val - self.val  # 前値との差を取得。
 		startday += timedelta(days=7*diff)  # 新規開始日を取得。
+		
 		col0 = [""]*7
 		todayindex = 7//2  # 本日と同じインデックスを取得。
 		if val==0:
@@ -179,6 +183,8 @@ class TextListener(unohelper.Base, XTextListener):
 			col0[todayindex] = txt.format(abs(val))		
 		addDays(griddatamodel, dateformat, startday, col0)  # グリッドコントロールに行を入れる。
 		gridcontrol.selectRow(todayindex)
+		
+		
 		self.val = val  # 変更後の値を前値として取得。
 	def disposing(self, eventobject):
 		pass
