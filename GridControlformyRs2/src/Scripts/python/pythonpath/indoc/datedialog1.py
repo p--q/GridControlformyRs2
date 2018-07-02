@@ -9,7 +9,7 @@ from com.sun.star.awt.MessageBoxType import QUERYBOX  # enum
 from com.sun.star.beans import NamedValue  # Struct
 from com.sun.star.frame import XFrameActionListener
 from com.sun.star.frame.FrameAction import FRAME_UI_DEACTIVATING  # enum
-from com.sun.star.style.VerticalAlignment import BOTTOM  # enum
+from com.sun.star.style.VerticalAlignment import MIDDLE  # enum
 from com.sun.star.util import XCloseListener
 from com.sun.star.util import MeasureUnit  # 定数
 from com.sun.star.view.SelectionType import SINGLE  # enum 
@@ -32,8 +32,7 @@ def createDialog(xscriptcontext, enhancedmouseevent, dialogtitle):  # dialogtitl
 	optioncontrolcontainerprops = controlcontainerprops.copy()
 	controlcontainer, addControl = controlcontainerMaCreator(ctx, smgr, maTopx, controlcontainerprops)  # コントロールコンテナの作成。		
 	menulistener = MenuListener()  # コンテクストメニューにつけるリスナー。
-	items = ("セル入力で閉じる", MenuItemStyle.CHECKABLE+MenuItemStyle.AUTOCHECK, {"checkItem": True}),\
-			("オプション表示", MenuItemStyle.CHECKABLE+MenuItemStyle.AUTOCHECK, {"checkItem": True})  # グリッドコントロールのコンテクストメニュー。XMenuListenerのmenuevent.MenuIdでコードを実行する。
+	items = ("セル入力で閉じる", MenuItemStyle.CHECKABLE+MenuItemStyle.AUTOCHECK, {"checkItem": True}),  # グリッドコントロールのコンテクストメニュー。XMenuListenerのmenuevent.MenuIdでコードを実行する。
 	gridpopupmenu = menuCreator(ctx, smgr)("PopupMenu", items, {"addMenuListener": menulistener})  # 右クリックでまず呼び出すポップアップメニュー。 
 	mouselistener = MouseListener(xscriptcontext, gridpopupmenu, dateformat)
 	gridcontrolwidth = gridprops["Width"]  # gridpropsは消費されるので、グリッドコントロールの幅を取得しておく。
@@ -55,21 +54,37 @@ def createDialog(xscriptcontext, enhancedmouseevent, dialogtitle):  # dialogtitl
 	startday = date.today() - timedelta(days=1)*todayindex  # 開始dateを取得。
 	addDays(griddatamodel, dateformat, startday, col0)  # グリッドコントロールに行を入れる。
 	
-	buttonprops1 = {"PositionX": 0, "PositionY": m, "Width": 30, "Height": h+2, "Label": "前週"}  # ボタンのプロパティ。PushButtonTypeの値はEnumではエラーになる。
-	buttonprops2 = {"PositionY": m, "Width": 30, "Height": h+2, "Label": "次週"}  # ボタンのプロパティ。PushButtonTypeの値はEnumではエラーになる。
-	buttonprops2.update({"PositionX": gridcontrolwidth-buttonprops2["Width"]})
-	numericfieldprops1 = {"PositionX": 0, "PositionY": YHeight(buttonprops1, m), "Width": 24, "Height": h+2, "Spin": True, "StrictFormat": True, "Value": 0, "ValueStep": 1, "ShowThousandsSeparator": True, "DecimalAccuracy": 0}
-	fixedtextprops1 = {"PositionX": XWidth(numericfieldprops1), "PositionY": numericfieldprops1["PositionY"], "Width": gridcontrolwidth-numericfieldprops1["Width"], "Height": h, "Label": "週後(本日を起点)", "VerticalAlign": BOTTOM}
-	optioncontrolcontainerprops.update({"PositionY": YHeight(optioncontrolcontainerprops)})
-	optioncontrolcontainerprops.update({"Height": YHeight(numericfieldprops1, m)})
+# 	buttonprops1 = {"PositionX": 0, "PositionY": m, "Width": 26, "Height": h+2, "Label": "前週"}  # ボタンのプロパティ。PushButtonTypeの値はEnumではエラーになる。
+	
+	
+# 	numericfieldprops1 = {"PositionY": m, "Width": 24, "Height": h+2, "Spin": True, "StrictFormat": True, "Value": 0, "ValueStep": 1, "ShowThousandsSeparator": False, "DecimalAccuracy": 0}
+	
+	
+	
+# 	buttonprops2 = {"PositionY": m, "Width": buttonprops1["Width"], "Height": h+2, "Label": "次週"}  # ボタンのプロパティ。PushButtonTypeの値はEnumではエラーになる。
+	
+	numericfieldprops1 = {"PositionX": m, "PositionY": m, "Width": 24, "Height": h+2, "Spin": True, "StrictFormat": True, "Value": 0, "ValueStep": 1, "ShowThousandsSeparator": False, "DecimalAccuracy": 0}
+	fixedtextprops1 = {"PositionX": XWidth(numericfieldprops1), "PositionY": m, "Width": 20, "Height": h, "Label": "週後", "VerticalAlign": MIDDLE}
+
+	
+	
+# 	buttonprops2.update({"PositionX": gridcontrolwidth-buttonprops2["Width"]})
+# 	numericfieldprops1.update({"PositionX": (gridcontrolwidth-numericfieldprops1["Width"])//2})
+	fixedtextprops2 = {"PositionX": m, "PositionY": YHeight(numericfieldprops1, m), "Width": 20, "Height": h, "Label": "基準日", "VerticalAlign": MIDDLE}
+	buttonprops1 = {"PositionX": XWidth(fixedtextprops2), "PositionY": fixedtextprops2["PositionY"], "Width": 26, "Height": h+2, "Label": "今日"}  # ボタンのプロパティ。PushButtonTypeの値はEnumではエラーになる。
+	buttonprops2 = {"PositionX": XWidth(buttonprops1, m), "PositionY": fixedtextprops2["PositionY"], "Width": 26, "Height": h+2, "Label": "セル"}  # ボタンのプロパティ。PushButtonTypeの値はEnumではエラーになる。
+	optioncontrolcontainerprops.update({"PositionY": YHeight(optioncontrolcontainerprops), "Height": YHeight(fixedtextprops2, m)})
 	optioncontrolcontainer, optionaddControl = controlcontainerMaCreator(ctx, smgr, maTopx, optioncontrolcontainerprops)  # コントロールコンテナの作成。
-	actionlistener = ActionListener()  # ボタンコントロールにつけるリスナー。		
-	optionaddControl("Button", buttonprops1, {"addActionListener": actionlistener, "setActionCommand": "previous"})
-	optionaddControl("Button", buttonprops2, {"addActionListener": actionlistener, "setActionCommand": "next"})
-	args = dateformat, gridcontrol1
-	textlistener = TextListener(args)
-	optionaddControl("NumericField", numericfieldprops1, {"addTextListener": textlistener})
+	textlistener = TextListener(dateformat, gridcontrol1)
+	optionaddControl("NumericField", numericfieldprops1, {"addTextListener": textlistener})		
 	optionaddControl("FixedText", fixedtextprops1)
+	actionlistener = ActionListener()  # ボタンコントロールにつけるリスナー。		
+# 	optionaddControl("Button", buttonprops1, {"addActionListener": actionlistener, "setActionCommand": "previous"})
+# 	optionaddControl("Button", buttonprops2, {"addActionListener": actionlistener, "setActionCommand": "next"})
+
+	optionaddControl("FixedText", fixedtextprops2)
+	optionaddControl("Button", buttonprops1, {"addActionListener": actionlistener, "setActionCommand": "today"})
+	optionaddControl("Button", buttonprops2, {"addActionListener": actionlistener, "setActionCommand": "celldate"})	
 	rectangle = controlcontainer.getPosSize()  # コントロールコンテナのRectangle Structを取得。px単位。
 	rectangle.X, rectangle.Y = dialogpoint  # クリックした位置を取得。ウィンドウタイトルを含めない座標。
 	rectangle.Height += optioncontrolcontainer.getSize().Height
@@ -173,18 +188,15 @@ class TextListener(unohelper.Base, XTextListener):
 		val = numericfield.getValue()  # 数値フィールドの値を取得。		
 		diff = val - self.val  # 前値との差を取得。
 		startday += timedelta(days=7*diff)  # 新規開始日を取得。
-		
 		col0 = [""]*7
 		todayindex = 7//2  # 本日と同じインデックスを取得。
 		if val==0:
 			col0[todayindex-1:todayindex+2] = "昨日", "今日", "明日"  # 列インデックス0に入れる文字列を取得。
 		else:
 			txt = "{}週後" if val>0 else "{}週前" 
-			col0[todayindex] = txt.format(abs(val))		
+			col0[todayindex] = txt.format(int(abs(val)))  # valはfloatなので小数点が入ってくる。		
 		addDays(griddatamodel, dateformat, startday, col0)  # グリッドコントロールに行を入れる。
 		gridcontrol.selectRow(todayindex)
-		
-		
 		self.val = val  # 変更後の値を前値として取得。
 	def disposing(self, eventobject):
 		pass
