@@ -2,10 +2,9 @@
 # -*- coding: utf-8 -*-
 import unohelper, json, locale  # import pydevd; pydevd.settrace(stdoutToServer=True, stderrToServer=True)
 from datetime import date, datetime, timedelta
-from com.sun.star.awt import XActionListener, XMenuListener, XMouseListener, XWindowListener, XTextListener
-from com.sun.star.awt import MenuItemStyle, MessageBoxButtons, MessageBoxResults, MouseButton, PopupMenuDirection, PosSize  # 定数
-from com.sun.star.awt import MenuEvent, Point, Rectangle  # Struct
-from com.sun.star.awt.MessageBoxType import QUERYBOX  # enum
+from com.sun.star.awt import XMouseListener, XTextListener
+from com.sun.star.awt import MenuItemStyle, MouseButton, PopupMenuDirection, PosSize  # 定数
+from com.sun.star.awt import Point, Rectangle  # Struct
 from com.sun.star.beans import NamedValue  # Struct
 from com.sun.star.frame import XFrameActionListener
 from com.sun.star.frame.FrameAction import FRAME_UI_DEACTIVATING  # enum
@@ -31,60 +30,27 @@ def createDialog(xscriptcontext, enhancedmouseevent, dialogtitle):  # dialogtitl
 	controlcontainerprops = {"PositionX": 0, "PositionY": 0, "Width": XWidth(gridprops), "Height": YHeight(gridprops), "BackgroundColor": 0xF0F0F0}  # コントロールコンテナの基本プロパティ。幅は右端のコントロールから取得。高さはコントロール追加後に最後に設定し直す。		
 	optioncontrolcontainerprops = controlcontainerprops.copy()
 	controlcontainer, addControl = controlcontainerMaCreator(ctx, smgr, maTopx, controlcontainerprops)  # コントロールコンテナの作成。		
-	menulistener = MenuListener()  # コンテクストメニューにつけるリスナー。
 	items = ("セル入力で閉じる", MenuItemStyle.CHECKABLE+MenuItemStyle.AUTOCHECK, {"checkItem": True}),  # グリッドコントロールのコンテクストメニュー。XMenuListenerのmenuevent.MenuIdでコードを実行する。
-	gridpopupmenu = menuCreator(ctx, smgr)("PopupMenu", items, {"addMenuListener": menulistener})  # 右クリックでまず呼び出すポップアップメニュー。 
+	gridpopupmenu = menuCreator(ctx, smgr)("PopupMenu", items)  # 右クリックでまず呼び出すポップアップメニュー。 
 	mouselistener = MouseListener(xscriptcontext, gridpopupmenu, dateformat)
 	gridcontrolwidth = gridprops["Width"]  # gridpropsは消費されるので、グリッドコントロールの幅を取得しておく。
 	gridcontrol1 = addControl("Grid", gridprops, {"addMouseListener": mouselistener})  # グリッドコントロールの取得。
-	gridmodel = gridcontrol1.getModel()  # グリッドコントロールモデルの取得。
-	gridcolumn = gridmodel.getPropertyValue("ColumnModel")  # DefaultGridColumnModel
+	gridcolumn = gridcontrol1.getModel().getPropertyValue("ColumnModel")  # DefaultGridColumnModel
 	column0 = gridcolumn.createColumn() # 列の作成。
 	column0.ColumnWidth = 25 # 列幅。
 	gridcolumn.addColumn(column0)  # 1列目を追加。
 	column1 = gridcolumn.createColumn() # 列の作成。
 	column1.ColumnWidth = gridcontrolwidth - column0.ColumnWidth #  列幅。列の合計がグリッドコントロールの幅に一致するようにする。
 	gridcolumn.addColumn(column1)  # 2列目を追加。
-	griddatamodel = gridmodel.getPropertyValue("GridDataModel")  # GridDataModel
-	
-	
-	todayindex = 7//2  # 今日の日付の位置を決定。切り下げ。
-	col0 = [""]*7  # 全てに空文字を挿入。
-	col0[todayindex-1:todayindex+2] = "昨日", "今日", "明日"  # 列インデックス0に入れる文字列を取得。
-	startday = date.today() - timedelta(days=1)*todayindex  # 開始dateを取得。
-	addDays(griddatamodel, dateformat, startday, col0)  # グリッドコントロールに行を入れる。
-	
-# 	buttonprops1 = {"PositionX": 0, "PositionY": m, "Width": 26, "Height": h+2, "Label": "前週"}  # ボタンのプロパティ。PushButtonTypeの値はEnumではエラーになる。
-	
-	
-# 	numericfieldprops1 = {"PositionY": m, "Width": 24, "Height": h+2, "Spin": True, "StrictFormat": True, "Value": 0, "ValueStep": 1, "ShowThousandsSeparator": False, "DecimalAccuracy": 0}
-	
-	
-	
-# 	buttonprops2 = {"PositionY": m, "Width": buttonprops1["Width"], "Height": h+2, "Label": "次週"}  # ボタンのプロパティ。PushButtonTypeの値はEnumではエラーになる。
-	
-	numericfieldprops1 = {"PositionX": m, "PositionY": m, "Width": 24, "Height": h+2, "Spin": True, "StrictFormat": True, "Value": 0, "ValueStep": 1, "ShowThousandsSeparator": False, "DecimalAccuracy": 0}
-	fixedtextprops1 = {"PositionX": XWidth(numericfieldprops1), "PositionY": m, "Width": 20, "Height": h, "Label": "週後", "VerticalAlign": MIDDLE}
-
-	
-	
-# 	buttonprops2.update({"PositionX": gridcontrolwidth-buttonprops2["Width"]})
-# 	numericfieldprops1.update({"PositionX": (gridcontrolwidth-numericfieldprops1["Width"])//2})
-	fixedtextprops2 = {"PositionX": m, "PositionY": YHeight(numericfieldprops1, m), "Width": 20, "Height": h, "Label": "基準日", "VerticalAlign": MIDDLE}
-	buttonprops1 = {"PositionX": XWidth(fixedtextprops2), "PositionY": fixedtextprops2["PositionY"], "Width": 26, "Height": h+2, "Label": "今日"}  # ボタンのプロパティ。PushButtonTypeの値はEnumではエラーになる。
-	buttonprops2 = {"PositionX": XWidth(buttonprops1, m), "PositionY": fixedtextprops2["PositionY"], "Width": 26, "Height": h+2, "Label": "セル"}  # ボタンのプロパティ。PushButtonTypeの値はEnumではエラーになる。
-	optioncontrolcontainerprops.update({"PositionY": YHeight(optioncontrolcontainerprops), "Height": YHeight(fixedtextprops2, m)})
+	numericfieldprops1 = {"PositionY": m, "Width": 24, "Height": h+2, "Spin": True, "StrictFormat": True, "Value": 0, "ValueStep": 1, "ShowThousandsSeparator": False, "DecimalAccuracy": 0}
+	fixedtextprops1 = {"PositionY": m, "Width": 14, "Height": h, "Label": "週後", "VerticalAlign": MIDDLE}
+	fixedtextprops1.update({"PositionX": gridcontrolwidth-fixedtextprops1["Width"]})
+	numericfieldprops1.update({"PositionX": fixedtextprops1["PositionX"]-numericfieldprops1["Width"]})
+	optioncontrolcontainerprops.update({"PositionY": YHeight(optioncontrolcontainerprops), "Height": YHeight(numericfieldprops1, m)})
 	optioncontrolcontainer, optionaddControl = controlcontainerMaCreator(ctx, smgr, maTopx, optioncontrolcontainerprops)  # コントロールコンテナの作成。
 	textlistener = TextListener(dateformat, gridcontrol1)
 	optionaddControl("NumericField", numericfieldprops1, {"addTextListener": textlistener})		
 	optionaddControl("FixedText", fixedtextprops1)
-	actionlistener = ActionListener()  # ボタンコントロールにつけるリスナー。		
-# 	optionaddControl("Button", buttonprops1, {"addActionListener": actionlistener, "setActionCommand": "previous"})
-# 	optionaddControl("Button", buttonprops2, {"addActionListener": actionlistener, "setActionCommand": "next"})
-
-	optionaddControl("FixedText", fixedtextprops2)
-	optionaddControl("Button", buttonprops1, {"addActionListener": actionlistener, "setActionCommand": "today"})
-	optionaddControl("Button", buttonprops2, {"addActionListener": actionlistener, "setActionCommand": "celldate"})	
 	rectangle = controlcontainer.getPosSize()  # コントロールコンテナのRectangle Structを取得。px単位。
 	rectangle.X, rectangle.Y = dialogpoint  # クリックした位置を取得。ウィンドウタイトルを含めない座標。
 	rectangle.Height += optioncontrolcontainer.getSize().Height
@@ -103,73 +69,53 @@ def createDialog(xscriptcontext, enhancedmouseevent, dialogtitle):  # dialogtitl
 	controlcontainer.setVisible(True)  # コントロールの表示。
 	optioncontrolcontainer.setVisible(True)
 	dialogwindow.setVisible(True) # ウィンドウの表示。これ以降WindowListenerが発火する。
-	gridcontrol1.selectRow(todayindex)  # 今日の行を選択。ピアの作成後(表示後?)でないとunsatisfied query for interface of type com.sun.star.awt.grid.XGridRowSelection!と言われる。
-	
-	
-	
-	
-
-# 	windowlistener = WindowListener(controlcontainer, optioncontrolcontainer) # コンテナウィンドウからコントロールコンテナを取得する方法はないはずなので、ここで渡す。WindowListenerはsetVisible(True)で呼び出される。
-# 	dialogwindow.addWindowListener(windowlistener) # コンテナウィンドウにリスナーを追加する。
-# 	menulistener.args = dialogwindow, windowlistener
-# 	dialogstate = getSavedData(doc, "dialogstate_{}".format(dialogtitle))  # 保存データを取得。optioncontrolcontainerの表示状態は常にFalseなので保存されていない。
-# 	if dialogstate is not None:  # 保存してあるダイアログの状態がある時。
-# 		for menuid in range(1, gridpopupmenu.getItemCount()+1):  # ポップアップメニューを走査する。
-# 			itemtext = gridpopupmenu.getItemText(menuid)  # 文字列にはショートカットキーがついてくる。
-# 			if itemtext.startswith("セル入力で閉じる"):
-# 				closecheck = dialogstate.get("CloseCheck")  # セル入力で閉じる、のチェックがある時。
-# 				if closecheck is not None:
-# 					gridpopupmenu.checkItem(menuid, closecheck)
-# 			elif itemtext.startswith("オプション表示"):
-# 				optioncheck = dialogstate.get("OptionCheck")  # オプション表示、のチェックがある時。
-# 				if optioncheck is not None:
-# 					gridpopupmenu.checkItem(menuid, optioncheck)  # ItemIDは1から始まる。これでMenuListenerは発火しない。
-# 					if optioncheck:  # チェックが付いている時MenuListenerを発火させる。
-# 						menulistener.itemSelected(MenuEvent(MenuId=menuid, Source=mouselistener.gridpopupmenu))
-# 		checkbox1sate = dialogstate.get("CheckBox1sate")  # セルに追記、チェックボックス。キーがなければNoneが返る。	
-# 		if checkbox1sate is not None:  # セルに追記、が保存されている時。
-# 			checkboxcontrol1.setState(checkbox1sate)  # 状態を復元。
-# 		checkbox2sate = dialogstate.get("CheckBox2sate")  # サイズ復元、チェックボックス。	
-# 		if checkbox2sate is not None:  # サイズ復元、が保存されている時。
-# 			checkboxcontrol2.setState(checkbox2sate)  # 状態を復元。	
-# 			if checkbox2sate:  # サイズ復元がチェックされている時。
-# 				dialogwindow.setPosSize(0, 0, dialogstate["Width"], dialogstate["Height"], PosSize.SIZE)  # ウィンドウサイズを復元。WindowListenerが発火する。
-# 	args = doc, actionlistener, dialogwindow, windowlistener, mouselistener, menulistener, controlcontainerwindowlistener, optioncontrolcontainerwindowlistener
-# 	dialogframe.addCloseListener(CloseListener(args))  # CloseListener。ノンモダルダイアログのリスナー削除用。	
-def addDays(griddatamodel, dateformat, startday, col0, daycount=7):
-	griddatamodel.removeAllRows()  # グリッドコントロールの行を全削除。
+	todayindex = 7//2  # 今日の日付の位置を決定。切り下げ。
+	col0 = [""]*7  # 全てに空文字を挿入。
+	cellvalue = enhancedmouseevent.Target.getValue()  # セルの値を取得。
+	centerday = None
+	if cellvalue and isinstance(cellvalue, float):  # セルの値がfloat型のとき。datevalueと決めつける。
+		functionaccess = smgr.createInstanceWithContext("com.sun.star.sheet.FunctionAccess", ctx)  # シート関数利用のため。	
+		if cellvalue!=functionaccess.callFunction("TODAY", ()):  # セルの数値が今日でない時。
+			centerday = date(*[int(functionaccess.callFunction(i, (cellvalue,))) for i in ("YEAR", "MONTH", "DAY")])  # シリアル値をシート関数で年、月、日に変換してdateオブジェクトにする。
+			col0[todayindex] = "基準日"
+	if centerday is None:
+		centerday = date.today()
+		col0[todayindex-1:todayindex+2] = "昨日", "今日", "明日"  # 列インデックス0に入れる文字列を取得。
+	addDays(gridcontrol1, dateformat, centerday, col0)  # グリッドコントロールに行を入れる。	
+	dialogstate = getSavedData(doc, "dialogstate_{}".format(dialogtitle))  # 保存データを取得。optioncontrolcontainerの表示状態は常にFalseなので保存されていない。
+	if dialogstate is not None:  # 保存してあるダイアログの状態がある時。
+		for menuid in range(1, gridpopupmenu.getItemCount()+1):  # ポップアップメニューを走査する。
+			itemtext = gridpopupmenu.getItemText(menuid)  # 文字列にはショートカットキーがついてくる。
+			if itemtext.startswith("セル入力で閉じる"):
+				closecheck = dialogstate.get("CloseCheck")  # セル入力で閉じる、のチェックがある時。
+				if closecheck is not None:
+					gridpopupmenu.checkItem(menuid, closecheck)	
+	args = doc, mouselistener, controlcontainer
+	dialogframe.addCloseListener(CloseListener(args))  # CloseListener。ノンモダルダイアログのリスナー削除用。		
+def addDays(gridcontrol, dateformat, centerday, col0, daycount=7):
+	todayindex = 7//2  # 今日の日付の位置を決定。切り下げ。
+	startday = centerday - timedelta(days=1)*todayindex  # 開始dateを取得。
 	dategene = (startday+timedelta(days=i) for i in range(daycount))  # daycount分のdateオブジェクトのジェネレーターを取得。
 	locale.setlocale(locale.LC_ALL, '')  # これがないとWindows10では曜日が英語になる。locale.setlocale(locale.LC_TIME, 'ja_JP.utf-8')では文字化けする。
 	datarows = tuple(zip(col0, (i.strftime(dateformat) for i in dategene)))  # 列インデックス0に語句、列インデックス1に日付を入れる。
+	griddatamodel = gridcontrol.getModel().getPropertyValue("GridDataModel")  # GridDataModel
+	griddatamodel.removeAllRows()  # グリッドコントロールの行を全削除。
 	griddatamodel.addRows(("",)*len(datarows), datarows)  # グリッドに行を追加。	
+	gridcontrol.selectRow(todayindex)
 class CloseListener(unohelper.Base, XCloseListener):  # ノンモダルダイアログのリスナー削除用。
 	def __init__(self, args):
 		self.args = args
 	def queryClosing(self, eventobject, getsownership):  # ノンモダルダイアログを閉じる時に発火。
 		dialogframe = eventobject.Source
-		doc, actionlistener, dialogwindow, windowlistener, mouselistener, menulistener, controlcontainerwindowlistener, optioncontrolcontainerwindowlistener = self.args
-		controlcontainer, optioncontrolcontainer = windowlistener.args
-		dialogwindowsize = dialogwindow.getSize()	
-		dialogstate = {"CheckBox1sate": optioncontrolcontainer.getControl("CheckBox1").getState(),\
-					"CheckBox2sate": optioncontrolcontainer.getControl("CheckBox2").getState(),\
-					"Width": dialogwindowsize.Width,\
-					"Height": dialogwindowsize.Height}  # チェックボックスコントロールの状態とコンテナウィンドウの大きさを取得。
+		doc, mouselistener, controlcontainer = self.args
 		gridpopupmenu = mouselistener.gridpopupmenu
 		for menuid in range(1, gridpopupmenu.getItemCount()+1):  # ポップアップメニューを走査する。
 			itemtext = gridpopupmenu.getItemText(menuid)
 			if itemtext.startswith("セル入力で閉じる"):
-				dialogstate.update({"CloseCheck": gridpopupmenu.isItemChecked(menuid)})
-			elif itemtext.startswith("オプション表示"):
-				dialogstate.update({"OptionCheck": gridpopupmenu.isItemChecked(menuid)})
+				dialogstate = {"CloseCheck": gridpopupmenu.isItemChecked(menuid)}
 		dialogtitle = dialogframe.getTitle()  # コンテナウィンドウタイトルを取得。データ保存のIDに使う。
 		saveData(doc, "dialogstate_{}".format(dialogtitle), dialogstate)  # ダイアログの状態を保存。
-		saveData(doc, "GridDatarows_{}".format(dialogtitle), actionlistener.datarows)  # ダイアログのグリッドコントロールの行を保存。
-		gridpopupmenu.removeMenuListener(menulistener)
 		controlcontainer.getControl("Grid1").removeMouseListener(mouselistener)
-		[controlcontainer.getControl(i).removeActionListener(actionlistener) for i in ("Button1", "Button2", "Button3", "Button4")]
-		controlcontainer.removeWindowListener(controlcontainerwindowlistener)
-		optioncontrolcontainer.removeWindowListener(optioncontrolcontainerwindowlistener)
-		dialogwindow.removeWindowListener(windowlistener)
 		eventobject.Source.removeCloseListener(self)
 	def notifyClosing(self, eventobject):
 		pass
@@ -182,34 +128,20 @@ class TextListener(unohelper.Base, XTextListener):
 	def textChanged(self, textevent):
 		numericfield = textevent.Source
 		dateformat, gridcontrol = self.args
-		griddatamodel = gridcontrol.getModel().getPropertyValue("GridDataModel")  # GridDataModelを取得。
-		datetxt = griddatamodel.getCellData(1, 0)  # 1行目の日付文字列を取得。
-		startday = datetime.strptime(datetxt, dateformat)  # 現在の最初のdatetimeオブジェクトを取得。
+		todayindex = 7//2  # 本日と同じインデックスを取得。
+		datetxt = gridcontrol.getModel().getPropertyValue("GridDataModel").getCellData(1, todayindex)  # 中央行の日付文字列を取得。
+		centerday = datetime.strptime(datetxt, dateformat)  # 現在の最初のdatetimeオブジェクトを取得。
 		val = numericfield.getValue()  # 数値フィールドの値を取得。		
 		diff = val - self.val  # 前値との差を取得。
-		startday += timedelta(days=7*diff)  # 新規開始日を取得。
+		centerday += timedelta(days=7*diff)  # 週を移動。
 		col0 = [""]*7
-		todayindex = 7//2  # 本日と同じインデックスを取得。
 		if val==0:
 			col0[todayindex-1:todayindex+2] = "昨日", "今日", "明日"  # 列インデックス0に入れる文字列を取得。
 		else:
 			txt = "{}週後" if val>0 else "{}週前" 
 			col0[todayindex] = txt.format(int(abs(val)))  # valはfloatなので小数点が入ってくる。		
-		addDays(griddatamodel, dateformat, startday, col0)  # グリッドコントロールに行を入れる。
-		gridcontrol.selectRow(todayindex)
+		addDays(gridcontrol, dateformat, centerday, col0)  # グリッドコントロールに行を入れる。
 		self.val = val  # 変更後の値を前値として取得。
-	def disposing(self, eventobject):
-		pass
-class ActionListener(unohelper.Base, XActionListener):
-	def actionPerformed(self, actionevent):
-		cmd = actionevent.ActionCommand
-		numericfield = actionevent.Source.getContext().getControl("NumericField1")
-		val = numericfield.getValue()  # 数値フィールドの値を取得。	
-		if cmd=="previous":  # 前週へ。
-			val -= 1
-		elif cmd=="next":  # 次週へ。
-			val += 1
-		val = numericfield.setValue(val)  # 数値フィールドの値を変更。		
 	def disposing(self, eventobject):
 		pass
 def saveData(doc, rangename, obj):	# configシートの名前rangenameにobjをJSONにして保存する。グローバル変数SHEETNAMEを使用。
@@ -261,15 +193,30 @@ class MouseListener(unohelper.Base, XMouseListener):
 					rowindexes = getSelectedRowIndexes(gridcontrol)  # グリッドコントロールの選択行インデックスを返す。昇順で返す。負数のインデックスがある時は要素をクリアする。
 					if rowindexes:
 						datetxt = gridcontrol.getModel().getPropertyValue("GridDataModel").getCellData(1, rowindexes[0])  # 選択行の日付文字列を取得。
-						selectedday = datetime.strptime(datetxt, self.dateformat)  # 現在の最初のdatetimeオブジェクトを取得。
-						selection.setString(selectedday.isoformat())  # セルに代入。	
+						selectedday = datetime.strptime(datetxt, self.dateformat)  # 現在の最初のdatetimeオブジェクトを取得。	
+						selection.setFormula(selectedday.isoformat())  # セルに式として代入。			
+						
+						from com.sun.star.util import NumberFormat  # 定数
+						numberformats = doc.getNumberFormats()
+						formatkey =numberformats.getStandardFormat(NumberFormat.DATE, Locale())
+						sheet["B4"].setPropertyValue("NumberFormat", formatkey)  # セルの書式を設定。 
+
+						
+						
+						
 				gridpopupmenu = self.gridpopupmenu		
 				for menuid in range(1, gridpopupmenu.getItemCount()+1):  # ポップアップメニューを走査する。
 					itemtext = gridpopupmenu.getItemText(menuid)  # 文字列にはショートカットキーがついてくる。
 					if itemtext.startswith("セル入力で閉じる"):
 						if gridpopupmenu.isItemChecked(menuid):  # 選択項目にチェックが入っている時。
 							self.dialogframe.close(True)
-							break
+						else:
+							controller = doc.getCurrentController()  # 現在のコントローラを取得。	
+							sheet = controller.getActiveSheet()
+							celladdress = selection.getCellAddress()
+							nextcell = sheet[celladdress.Row+1, celladdress.Column]  # 下のセルを取得。
+							controller.select(nextcell)  # 下のセルを選択。							
+						break
 		elif mouseevent.Buttons==MouseButton.RIGHT:  # 右ボタンクリックの時。mouseevent.PopupTriggerではサブジェクトによってはTrueにならないので使わない。
 			pos = Rectangle(mouseevent.X, mouseevent.Y, 0, 0)  # ポップアップメニューを表示させる起点。
 			self.gridpopupmenu.execute(gridcontrol.getPeer(), pos, PopupMenuDirection.EXECUTE_DEFAULT)  # ポップアップメニューを表示させる。引数は親ピア、位置、方向							
@@ -279,39 +226,6 @@ class MouseListener(unohelper.Base, XMouseListener):
 		pass
 	def mouseExited(self, mouseevent):
 		pass
-	def disposing(self, eventobject):
-		pass
-class MenuListener(unohelper.Base, XMenuListener):
-	def __init__(self):
-		self.args = None
-	def itemHighlighted(self, menuevent):
-		pass
-	def itemSelected(self, menuevent):  # PopupMenuの項目がクリックされた時。どこのコントロールのメニューかを知る方法はない。
-		menuid = menuevent.MenuId  # メニューIDを取得。1から始まる。
-		gridpopupmenu = menuevent.Source
-		itemtext = gridpopupmenu.getItemText(menuid)  # 文字列にはショートカットキーがついてくる。
-		if itemtext.startswith("オプション表示"):		
-			
-			dialogwindow, windowlistener = self.args
-			dummy, optioncontrolcontainer = windowlistener.args
-			dialogwindowsize = dialogwindow.getSize()
-			optioncontrolcontainersize = optioncontrolcontainer.getSize()		
-			if gridpopupmenu.isItemChecked(menuid):  # 選択項目にチェックが入った時。
-				windowlistener.option = True  # オプションコントロールダイアログを表示させるフラグを立てる。
-				diff_width = optioncontrolcontainersize.Width - dialogwindowsize.Width  # オプションコントロールコンテナ幅とコンテナウィンドウ幅の差。
-				diff_width = 0 if diff_width<0 else diff_width  # オプションコントロールコンテナ幅よりコンテナウィンドウ幅が大きい時は幅の調整をしない。
-				diff_height = optioncontrolcontainersize.Height  # オプションコントロールコンテナの高さを追加する。
-				createApplyDiff(diff_width, diff_height)(dialogwindow, PosSize.SIZE)  # コンテナウィンドウの大きさを変更。
-			else:
-				windowlistener.option = False  # オプションコントロールダイアログを表示させるフラグを倒す。
-				diff_height = -optioncontrolcontainersize.Height  # オプションコントロールコンテナの高さを減らす。
-				createApplyDiff(0, diff_height)(dialogwindow, PosSize.HEIGHT)  # コンテナウィンドウの大きさを変更。	
-				
-				
-	def itemActivated(self, menuevent):
-		pass
-	def itemDeactivated(self, menuevent):
-		pass   
 	def disposing(self, eventobject):
 		pass
 def getSelectedRowIndexes(gridcontrol):  # グリッドコントロールの選択行インデックスを返す。昇順で返す。負数のインデックスがある時は要素をクリアする。
@@ -328,81 +242,6 @@ class FrameActionListener(unohelper.Base, XFrameActionListener):
 			frameactionevent.Frame.close(True)
 	def disposing(self, eventobject):
 		pass
-class WindowListener(unohelper.Base, XWindowListener):
-	def __init__(self, *args):
-		self.args = args
-		self.option = False  # optioncontrolcontainerを表示しているかのフラグ。
-	def windowResized(self, windowevent):
-		controlcontainer, optioncontrolcontainer = self.args
-		if self.option:  # optioncontrolcontainerを表示している時。
-			optioncontrolcontainer.setVisible(True)
-			newwidth, newheight = windowevent.Width, windowevent.Height
-			controlcontainerheight = newheight - optioncontrolcontainer.getSize().Height  # オプションコントロールコンテナの高さを除いた高さを取得。
-			optioncontrolcontainer.setPosSize(0, controlcontainerheight, newwidth, 0, PosSize.Y+PosSize.WIDTH)
-			controlcontainer.setPosSize(0, 0, newwidth, controlcontainerheight, PosSize.SIZE)
-		else:
-			optioncontrolcontainer.setVisible(False)
-			controlcontainer.setPosSize(0, 0, windowevent.Width, windowevent.Height, PosSize.SIZE)
-	def windowMoved(self, windowevent):
-		pass
-	def windowShown(self, eventobject):
-		pass
-	def windowHidden(self, eventobject):
-		pass
-	def disposing(self, eventobject):
-		pass
-# class ControlContainerWindowListener(unohelper.Base, XWindowListener):
-# 	def __init__(self, controlcontainer):
-# 		size = controlcontainer.getSize()
-# 		self.oldwidth, self.oldheight = size.Width, size.Height  # 次の変更前の値として取得。		
-# 		self.controlcontainer = controlcontainer
-# 	def windowResized(self, windowevent):
-# 		newwidth, newheight = windowevent.Width, windowevent.Height
-# 		gridcontrol1 = self.controlcontainer.getControl("Grid1")
-# 		diff_width = newwidth - self.oldwidth  # 幅変化分
-# 		diff_height = newheight - self.oldheight  # 高さ変化分		
-# 		createApplyDiff(diff_width, diff_height)(gridcontrol1, PosSize.SIZE)  # コントロールの位置と大きさを変更		
-# 		self.oldwidth, self.oldheight = newwidth, newheight  # 次の変更前の値として取得。
-# 	def windowMoved(self, windowevent):
-# 		pass
-# 	def windowShown(self, eventobject):
-# 		pass
-# 	def windowHidden(self, eventobject):
-# 		pass
-# 	def disposing(self, eventobject):
-# 		pass
-def createApplyDiff(diff_width, diff_height):		
-	def applyDiff(control, possize):  # 第2引数でウィンドウサイズの変化分のみ適用するPosSizeを指定。
-		rectangle = control.getPosSize()  # 変更前のコントロールの位置大きさを取得。
-		control.setPosSize(rectangle.X+diff_width, rectangle.Y+diff_height, rectangle.Width+diff_width, rectangle.Height+diff_height, possize)  # Flagsで変更する値のみ指定。変更しない値は0(でもなんでもよいはず)。
-	return applyDiff	
-# class OptionControlContainerWindowListener(unohelper.Base, XWindowListener):
-# 	def __init__(self, optioncontrolcontainer):
-# 		self.oldwidth = optioncontrolcontainer.getSize().Width  # 次の変更前の値として取得。		
-# 		self.optioncontrolcontainer = optioncontrolcontainer
-# 	def windowResized(self, windowevent): # ウィンドウの大きさの変更に合わせてコントロールの位置と大きさを変更。Yと幅のみ変更。
-# 		optioncontrolcontainer = self.optioncontrolcontainer
-# 		newwidth = windowevent.Width
-# 		checkboxcontrol1 = optioncontrolcontainer.getControl("CheckBox1")
-# 		buttoncontrol1 = optioncontrolcontainer.getControl("Button1")
-# 		buttoncontrol3 = optioncontrolcontainer.getControl("Button3")
-# 		minwidth = checkboxcontrol1.getPosSize().Width + buttoncontrol1.getPosSize().Width + buttoncontrol3.getPosSize().Width + 6  # 最低幅を取得。
-# 		if newwidth<minwidth:  # 変更後のコントロールコンテナの幅を取得。サイズ下限より小さい時は下限値とする。
-# 			newwidth = minwidth
-# 		diff_width = newwidth - self.oldwidth  # 幅変化分
-# 		applyDiff = createApplyDiff(diff_width, 0)  # コントロールの位置と大きさを変更する関数を取得。
-# 		applyDiff(optioncontrolcontainer.getControl("Edit1"), PosSize.WIDTH)	
-# 		applyDiff(buttoncontrol3, PosSize.X)
-# 		applyDiff(optioncontrolcontainer.getControl("Button4"), PosSize.X)
-# 		self.oldwidth = newwidth  # 次の変更前の値として取得。
-# 	def windowMoved(self, windowevent):
-# 		pass
-# 	def windowShown(self, eventobject):
-# 		pass
-# 	def windowHidden(self, eventobject):
-# 		pass
-# 	def disposing(self, eventobject):
-# 		pass
 def XWidth(props, m=0):  # 左隣のコントロールからPositionXを取得。mは間隔。
 	return props["PositionX"] + props["Width"] + m  	
 def YHeight(props, m=0):  # 上隣のコントロールからPositionYを取得。mは間隔。
