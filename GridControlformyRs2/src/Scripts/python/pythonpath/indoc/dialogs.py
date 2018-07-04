@@ -19,8 +19,8 @@ def mousePressed(enhancedmouseevent, xscriptcontext):  # マウスボタンを�
 						elif dialogname=="historydialog8":   # 履歴ダイアログ。選択行インデックスの取得方法、スクロール、を修正。
 							historydialog8.createDialog(xscriptcontext, enhancedmouseevent, dialogname, defaultrows)		
 						elif dialogname=="datedialog1":  # 日付ダイアログ。
-							datedialog1.createDialog(xscriptcontext, enhancedmouseevent, dialogname)		
-
+							datedialog1.createDialog(xscriptcontext, enhancedmouseevent, dialogname, "YYYY/M/D")		
+	
 					
 					return False  # セル編集モードにしない。
 		return True  # セル編集モードにする。
