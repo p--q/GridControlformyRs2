@@ -11,10 +11,10 @@ from com.sun.star.frame.FrameAction import FRAME_UI_DEACTIVATING  # enum
 from com.sun.star.lang import Locale  # Struct
 from com.sun.star.style.VerticalAlignment import MIDDLE  # enum
 from com.sun.star.util import XCloseListener
-from com.sun.star.util import MeasureUnit, NumberFormat  # 定数
+from com.sun.star.util import MeasureUnit  # 定数
 from com.sun.star.view.SelectionType import SINGLE  # enum 
 SHEETNAME = "config"  # データを保存するシート名。
-def createDialog(xscriptcontext, enhancedmouseevent, dialogtitle, formatstring=None):  # dialogtitleはダイアログのデータ保存名に使うのでユニークでないといけない。daycountは表示日数。
+def createDialog(xscriptcontext, enhancedmouseevent, dialogtitle, formatstring=None):  # dialogtitleはダイアログのデータ保存名に使うのでユニークでないといけない。formatstringは代入セルの書式。
 	dateformat = "%Y/%m/%d(%a)"  # 日付書式。
 	ctx = xscriptcontext.getComponentContext()  # コンポーネントコンテクストの取得。
 	smgr = ctx.getServiceManager()  # サービスマネージャーの取得。	
@@ -33,8 +33,8 @@ def createDialog(xscriptcontext, enhancedmouseevent, dialogtitle, formatstring=N
 	controlcontainer, addControl = controlcontainerMaCreator(ctx, smgr, maTopx, controlcontainerprops)  # コントロールコンテナの作成。		
 	items = ("セル入力で閉じる", MenuItemStyle.CHECKABLE+MenuItemStyle.AUTOCHECK, {"checkItem": True}),  # グリッドコントロールのコンテクストメニュー。XMenuListenerのmenuevent.MenuIdでコードを実行する。
 	gridpopupmenu = menuCreator(ctx, smgr)("PopupMenu", items)  # 右クリックでまず呼び出すポップアップメニュー。 
-	args = xscriptcontext, gridpopupmenu, dateformat, formatstring
-	mouselistener = MouseListener(args)
+	args = xscriptcontext, dateformat, formatstring
+	mouselistener = MouseListener(gridpopupmenu, args)
 	gridcontrolwidth = gridprops["Width"]  # gridpropsは消費されるので、グリッドコントロールの幅を取得しておく。
 	gridcontrol1 = addControl("Grid", gridprops, {"addMouseListener": mouselistener})  # グリッドコントロールの取得。
 	gridcolumn = gridcontrol1.getModel().getPropertyValue("ColumnModel")  # DefaultGridColumnModel
@@ -51,7 +51,7 @@ def createDialog(xscriptcontext, enhancedmouseevent, dialogtitle, formatstring=N
 	optioncontrolcontainerprops.update({"PositionY": YHeight(optioncontrolcontainerprops), "Height": YHeight(numericfieldprops1, m)})
 	optioncontrolcontainer, optionaddControl = controlcontainerMaCreator(ctx, smgr, maTopx, optioncontrolcontainerprops)  # コントロールコンテナの作成。
 	textlistener = TextListener(dateformat, gridcontrol1)
-	optionaddControl("NumericField", numericfieldprops1, {"addTextListener": textlistener})		
+	numericfield1 = optionaddControl("NumericField", numericfieldprops1, {"addTextListener": textlistener})		
 	optionaddControl("FixedText", fixedtextprops1)
 	rectangle = controlcontainer.getPosSize()  # コントロールコンテナのRectangle Structを取得。px単位。
 	rectangle.X, rectangle.Y = dialogpoint  # クリックした位置を取得。ウィンドウタイトルを含めない座標。
@@ -71,6 +71,7 @@ def createDialog(xscriptcontext, enhancedmouseevent, dialogtitle, formatstring=N
 	controlcontainer.setVisible(True)  # コントロールの表示。
 	optioncontrolcontainer.setVisible(True)
 	dialogwindow.setVisible(True) # ウィンドウの表示。これ以降WindowListenerが発火する。
+	numericfield1.setFocus()
 	todayindex = 7//2  # 今日の日付の位置を決定。切り下げ。
 	col0 = [""]*7  # 全てに空文字を挿入。
 	cellvalue = enhancedmouseevent.Target.getValue()  # セルの値を取得。
@@ -103,7 +104,7 @@ def addDays(gridcontrol, dateformat, centerday, col0, daycount=7):
 	griddatamodel = gridcontrol.getModel().getPropertyValue("GridDataModel")  # GridDataModel
 	griddatamodel.removeAllRows()  # グリッドコントロールの行を全削除。
 	griddatamodel.addRows(("",)*len(datarows), datarows)  # グリッドに行を追加。	
-	gridcontrol.selectRow(todayindex)
+	gridcontrol.selectRow(todayindex)  # 選択行より上の行の最初のクリックだけハイライトが残る。バグ?
 class CloseListener(unohelper.Base, XCloseListener):  # ノンモダルダイアログのリスナー削除用。
 	def __init__(self, args):
 		self.args = args
@@ -186,11 +187,12 @@ def getSavedData(doc, rangename):  # configシートのragenameからデータ�
 					import traceback; traceback.print_exc()  # これがないとPyDevのコンソールにトレースバックが表示されない。stderrToServer=Trueが必須。
 	return None  # 保存された行が取得できない時はNoneを返す。
 class MouseListener(unohelper.Base, XMouseListener):  
-	def __init__(self, args): 	
+	def __init__(self, gridpopupmenu, args): 	
 		self.args = args
+		self.gridpopupmenu = gridpopupmenu  # CloseListenerでも使用する。
 		self.dialogframe = None
 	def mousePressed(self, mouseevent):  # グリッドコントロールをクリックした時。コントロールモデルにはNameプロパティはない。
-		xscriptcontext, gridpopupmenu, dateformat, formatstring = self.args
+		xscriptcontext, dateformat, formatstring = self.args
 		gridcontrol = mouseevent.Source  # グリッドコントロールを取得。
 		if mouseevent.Buttons==MouseButton.LEFT:
 			if mouseevent.ClickCount==2:  # ダブルクリックの時。
@@ -203,18 +205,16 @@ class MouseListener(unohelper.Base, XMouseListener):
 						selectedday = datetime.strptime(datetxt, dateformat)  # 現在の最初のdatetimeオブジェクトを取得。	
 						selection.setFormula(selectedday.isoformat())  # セルに式として代入。			
 						numberformats = doc.getNumberFormats()  # ドキュメントのフォーマット一覧を取得。デフォルトのフォーマット一覧はCalcの書式→セル→数値でみれる。
-						if formatstring is None:  # 書式が与えられていない時はデフォルト書式を設定。
-							formatkey = numberformats.getStandardFormat(NumberFormat.DATE, Locale())
-						else:
+						if formatstring is not None:  # 書式が与えられている時。
 							locale = Locale(Language="ja", Country="JP")  # フォーマット一覧をくくる言語と国を設定。インストールしていないUIの言語でもよい。。 
 							formatkey = numberformats.queryKey(formatstring, locale, True)  # formatstringが既存のフォーマット一覧にあるか調べて取得。第3引数のブーリアンは意味はないはず。 
 							if formatkey == -1:  # デフォルトのフォーマットにformatstringがないとき。
 								formatkey = numberformats.addNew(formatstring, locale)  # フォーマット一覧に追加する。保存はドキュメントごと。
 						selection.setPropertyValue("NumberFormat", formatkey)  # セルの書式を設定。 
-				for menuid in range(1, gridpopupmenu.getItemCount()+1):  # ポップアップメニューを走査する。
-					itemtext = gridpopupmenu.getItemText(menuid)  # 文字列にはショートカットキーがついてくる。
+				for menuid in range(1, self.gridpopupmenu.getItemCount()+1):  # ポップアップメニューを走査する。
+					itemtext = self.gridpopupmenu.getItemText(menuid)  # 文字列にはショートカットキーがついてくる。
 					if itemtext.startswith("セル入力で閉じる"):
-						if gridpopupmenu.isItemChecked(menuid):  # 選択項目にチェックが入っている時。
+						if self.gridpopupmenu.isItemChecked(menuid):  # 選択項目にチェックが入っている時。
 							self.dialogframe.close(True)
 						else:
 							controller = doc.getCurrentController()  # 現在のコントローラを取得。	
@@ -225,7 +225,7 @@ class MouseListener(unohelper.Base, XMouseListener):
 						break
 		elif mouseevent.Buttons==MouseButton.RIGHT:  # 右ボタンクリックの時。mouseevent.PopupTriggerではサブジェクトによってはTrueにならないので使わない。
 			pos = Rectangle(mouseevent.X, mouseevent.Y, 0, 0)  # ポップアップメニューを表示させる起点。
-			gridpopupmenu.execute(gridcontrol.getPeer(), pos, PopupMenuDirection.EXECUTE_DEFAULT)  # ポップアップメニューを表示させる。引数は親ピア、位置、方向							
+			self.gridpopupmenu.execute(gridcontrol.getPeer(), pos, PopupMenuDirection.EXECUTE_DEFAULT)  # ポップアップメニューを表示させる。引数は親ピア、位置、方向							
 	def mouseReleased(self, mouseevent):
 		pass
 	def mouseEntered(self, mouseevent):
