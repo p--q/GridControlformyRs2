@@ -104,7 +104,7 @@ def addDays(gridcontrol, dateformat, centerday, col0, daycount=7):
 	griddatamodel = gridcontrol.getModel().getPropertyValue("GridDataModel")  # GridDataModel
 	griddatamodel.removeAllRows()  # グリッドコントロールの行を全削除。
 	griddatamodel.addRows(("",)*len(datarows), datarows)  # グリッドに行を追加。	
-	gridcontrol.selectRow(todayindex)  # 選択行より上の行の最初のクリックだけハイライトが残る。バグ?
+# 	gridcontrol.selectRow(todayindex)  # 選択行より上の行の最初のクリックだけハイライトが残る。バグ?
 class CloseListener(unohelper.Base, XCloseListener):  # ノンモダルダイアログのリスナー削除用。
 	def __init__(self, args):
 		self.args = args
