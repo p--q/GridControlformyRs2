@@ -161,8 +161,11 @@ class ActionListener(unohelper.Base, XActionListener):
 				griddatamodel.addRow("", (txt,))
 				self.datarows.append((txt,))	
 			return	
-		if not selectedrowindexes:
-			return  # 選択行がない時はここで終わる。
+		if not selectedrowindexes:  # 選択行がない時。
+			if griddatamodel.RowCount==1:  # 1行だけの時。
+				selectedrowindexes = [0]  # 1行目を選択していることにする。
+			else:
+				return  # 選択行がない時はここで終わる。
 		if cmd=="up":  # 先頭行や連続していない複数行を選択している時はボタンを無効にしてある。
 			j = selectedrowindexes[0]  # 選択行の先頭行インデックスを取得。
 			datarowsToMove = self.datarows[j:selectedrowindexes[-1]+1]  # 移動させる行のリストを取得。
@@ -267,7 +270,10 @@ class MouseListener(unohelper.Base, XMouseListener):
 				selection = doc.getCurrentSelection()  # シート上で選択しているオブジェクトを取得。
 				if selection.supportsService("com.sun.star.sheet.SheetCell"):  # 選択オブジェクトがセルの時。
 					griddata = gridcontrol.getModel().getPropertyValue("GridDataModel")  # GridDataModelを取得。
-					rowdata = griddata.getRowData(gridcontrol.getCurrentRow())  # グリッドコントロールで選択している行のすべての列をタプルで取得。
+					j = gridcontrol.getCurrentRow()
+					if j<0:  # 選択行がない時は-1が返る。
+						return
+					rowdata = griddata.getRowData(j)  # グリッドコントロールで選択している行のすべての列をタプルで取得。
 					if optioncontrolcontainer.getControl("CheckBox1").getState():  # セルに追記、にチェックがある時。グリッドコントロールは1列と決めつけて処理する。
 						selection.setString("".join([selection.getString(), rowdata[0]]))  # セルに追記する。
 					else:
