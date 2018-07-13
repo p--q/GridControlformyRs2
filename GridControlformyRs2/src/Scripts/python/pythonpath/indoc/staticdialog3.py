@@ -42,6 +42,8 @@ def createDialog(xscriptcontext, enhancedmouseevent, dialogtitle, defaultrows=No
 		datarows = [i if isinstance(i, (list, tuple)) else (i,) for i in defaultrows]  # defaultrowsの要素をリストかタプルでなければタプルに変換する。
 	if datarows:  # 行のリストが取得出来た時。
 		griddatamodel.addRows(("",)*len(datarows), datarows)  # グリッドに行を追加。	
+	else:
+		datarows = []  # Noneのままではあとで処理できないので空リストを入れる。
 	controlcontainerwindowlistener = ControlContainerWindowListener(controlcontainer)		
 	controlcontainer.addWindowListener(controlcontainerwindowlistener)  # コントロールコンテナの大きさを変更するとグリッドコントロールの大きさも変更するようにする。
 	textboxprops = {"PositionX": 0, "PositionY": m, "Height": h}  # テクストボックスコントロールのプロパティ。
