@@ -161,7 +161,7 @@ class ActionListener(unohelper.Base, XActionListener):
 			return	
 		if not selectedrowindexes:
 			return  # 選択行がない時はここで終わる。
-		if cmd=="up":  # 先頭行や連続していない複数行を選択している時はボタンを無効にしてある。
+		if cmd=="up" and selectedrowindexes[0]>0:  # 先頭行や連続していない複数行を選択している時はボタンを無効にしてあるはずだが、選択したまま移動すると無効にならない。
 			j = selectedrowindexes[0]  # 選択行の先頭行インデックスを取得。
 			datarowsToMove = self.datarows[j:selectedrowindexes[-1]+1]  # 移動させる行のリストを取得。
 			del self.datarows[j:selectedrowindexes[-1]+1]  # 移動させる行を削除。
@@ -171,7 +171,7 @@ class ActionListener(unohelper.Base, XActionListener):
 			griddatamodel.addRows(("",)*len(self.datarows), self.datarows)  # グリッドに行を追加。
 			firstrow = j - 1  # 選択開始行を取得。
 			[self.gridcontrol.selectRow(i) for i in range(firstrow, firstrow+len(selectedrowindexes))]
-		elif cmd=="down":  # 最終行や連続していない複数行を選択している時はボタンを無効にしてある。
+		elif cmd=="down" and selectedrowindexes[-1]<griddatamodel.RowCount-1:  # 最終行や連続していない複数行を選択している時はボタンを無効にしてあるはずだが、選択したまま移動すると無効にならない。
 			j = selectedrowindexes[-1]  # 選択行の最終行インデックスを取得。
 			datarowsToMove = self.datarows[selectedrowindexes[0]:j+1]  # 移動させる行のリストを取得。
 			self.datarows.insert(j+2, "dummy")  # 置換される要素を挿入。
