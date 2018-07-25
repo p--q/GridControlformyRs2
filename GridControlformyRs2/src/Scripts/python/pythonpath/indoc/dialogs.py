@@ -21,9 +21,9 @@ def mousePressed(enhancedmouseevent, xscriptcontext):  # マウスボタンを�
 						elif dialogname=="datedialog1":  # 日付ダイアログ。
 							datedialog1.createDialog(xscriptcontext, enhancedmouseevent, dialogname, "YYYY/M/D")		
 						elif dialogname=="transientdialog2":  # 日付ダイアログ。
-							transientdialog2.createDialog(enhancedmouseevent, xscriptcontext, dialogname, defaultrows)
+# 							transientdialog2.createDialog(enhancedmouseevent, xscriptcontext, dialogname, defaultrows)
 					
-					
+							transientdialog2.createDialog(xscriptcontext, dialogname, defaultrows)
 					
 					return False  # セル編集モードにしない。
 		return True  # セル編集モードにする。

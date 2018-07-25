@@ -12,13 +12,10 @@ from com.sun.star.util import XCloseListener
 from com.sun.star.util import MeasureUnit  # 定数
 from com.sun.star.view.SelectionType import MULTI  # enum 
 SHEETNAME = "config"  # データを保存するシート名。
-def createDialog(enhancedmouseevent, xscriptcontext, dialogtitle, defaultrows, outputcolumn=None, *, callback=None):  # dialogtitleはダイアログのデータ保存名に使うのでユニークでないといけない。defaultrowsはグリッドコントロールのデフォルトデータ。
+def createDialog(xscriptcontext, dialogtitle, defaultrows, outputcolumn=None, *, callback=None):  # dialogtitleはダイアログのデータ保存名に使うのでユニークでないといけない。defaultrowsはグリッドコントロールのデフォルトデータ。
 	ctx = xscriptcontext.getComponentContext()  # コンポーネントコンテクストの取得。
 	smgr = ctx.getServiceManager()  # サービスマネージャーの取得。	
-	doc = xscriptcontext.getDocument()  # マクロを起動した時のドキュメントのモデルを取得。   
-	dialogpoint = getDialogPoint(doc, enhancedmouseevent)  # クリックした位置のメニューバーの高さ分下の位置を取得。単位ピクセル。一部しか表示されていないセルのときはNoneが返る。
-	if not dialogpoint:  # クリックした位置が取得出来なかった時は何もしない。
-		return
+	doc = xscriptcontext.getDocument()  # マクロを起動した時のドキュメントのモデルを取得。  
 	docframe = doc.getCurrentController().getFrame()  # モデル→コントローラ→フレーム、でドキュメントのフレームを取得。
 	containerwindow = docframe.getContainerWindow()  # ドキュメントのウィンドウ(コンテナウィンドウ=ピア)を取得。
 	maTopx = createConverters(containerwindow)  # ma単位をピクセルに変換する関数を取得。
@@ -37,39 +34,27 @@ def createDialog(enhancedmouseevent, xscriptcontext, dialogtitle, defaultrows, o
 	gridcolumn = gridmodel.getPropertyValue("ColumnModel")  # DefaultGridColumnModel
 	gridcolumn.addColumn(gridcolumn.createColumn())  # 列を追加。
 	griddatamodel = gridmodel.getPropertyValue("GridDataModel")  # GridDataModel
-# 	datarows = getSavedData(doc, "GridDatarows_{}".format(dialogtitle))  # グリッドコントロールの行をconfigシートのragenameから取得する。
 	if defaultrows is not None:  # デフォルトdatarowsがあるときデフォルトデータを使用。	
-# 	if datarows is None and defaultrows is not None:  # 履歴がなくデフォルトdatarowsがあるときデフォルトデータを使用。
 		datarows = [i if isinstance(i, (list, tuple)) else (i,) for i in defaultrows]  # defaultrowsの要素をリストかタプルでなければタプルに変換する。
-# 	if datarows:  # 行のリストが取得出来た時。
 		griddatamodel.addRows(("",)*len(datarows), datarows)  # グリッドに行を追加。	
 	else:
 		datarows = []  # Noneのままではあとで処理できないので空リストを入れる。
 	controlcontainerwindowlistener = ControlContainerWindowListener(controlcontainer)		
 	controlcontainer.addWindowListener(controlcontainerwindowlistener)  # コントロールコンテナの大きさを変更するとグリッドコントロールの大きさも変更するようにする。
-	textboxprops = {"PositionX": 0, "PositionY": m, "Height": h}  # テクストボックスコントロールのプロパティ。
-	checkboxprops1 = {"PositionX": 0, "PositionY": YHeight(textboxprops, m), "Width": 46, "Height": h, "Label": "~セルに追記", "State": 0} # セルに追記はデフォルトでは無効。
-	buttonprops1 = {"PositionX": XWidth(checkboxprops1), "PositionY": YHeight(textboxprops, m), "Width": 18, "Height": h+2, "Label": "上へ"}  # ボタンのプロパティ。PushButtonTypeの値はEnumではエラーになる。VerticalAlignではtextboxと高さが揃わない。
-	buttonprops3 = {"PositionX": XWidth(buttonprops1, 2), "PositionY": YHeight(textboxprops, m), "Width": 26, "Height": h+2, "Label": "行挿入"}
+	checkboxprops1 = {"PositionX": 0, "PositionY": m, "Width": 46, "Height": h, "Label": "~セルに追記", "State": 0} # セルに追記はデフォルトでは無効。
 	checkboxprops2 = {"PositionX": 0, "PositionY": YHeight(checkboxprops1, 4), "Width": 46, "Height": h, "Label": "~サイズ復元", "State": 1}  # サイズ復元はデフォルトでは有効。		
-	buttonprops2 = {"PositionX": XWidth(checkboxprops1), "PositionY": YHeight(buttonprops1, m*2), "Width": 18, "Height": h+2, "Label": "下へ"}
-	buttonprops4 = {"PositionX": XWidth(buttonprops1, m), "PositionY": YHeight(buttonprops1, m*2), "Width": 26, "Height": h+2, "Label": "行削除"}
-	textboxprops.update({"Width": XWidth(buttonprops3, m)})  # 右端のコントロールから左の余白mを除いた幅を取得。
-	optioncontrolcontainerprops = {"PositionX": 0, "PositionY": 0, "Width": XWidth(textboxprops), "Height": YHeight(buttonprops2, 2), "BackgroundColor": 0xF0F0F0}  # コントロールコンテナの基本プロパティ。幅は右端のコントロールから取得。高さはコントロール追加後に最後に設定し直す。		
+	optioncontrolcontainerprops = {"PositionX": 0, "PositionY": 0, "Width": XWidth(checkboxprops2), "Height": YHeight(checkboxprops2, 2), "BackgroundColor": 0xF0F0F0}  # コントロールコンテナの基本プロパティ。幅は右端のコントロールから取得。高さはコントロール追加後に最後に設定し直す。		
 	optioncontrolcontainer, optionaddControl = controlcontainerMaCreator(ctx, smgr, maTopx, optioncontrolcontainerprops)  # コントロールコンテナの作成。		
-# 	optionaddControl("Edit", textboxprops)  
 	checkboxcontrol1 = optionaddControl("CheckBox", checkboxprops1)
 	checkboxcontrol2 = optionaddControl("CheckBox", checkboxprops2)  
 	actionlistener = ActionListener(gridcontrol1, datarows)  # ボタンコントロールにつけるリスナー。
-# 	optionaddControl("Button", buttonprops1, {"addActionListener": actionlistener, "setActionCommand": "up"})  
-# 	optionaddControl("Button", buttonprops2, {"addActionListener": actionlistener, "setActionCommand": "down"})  
-# 	optionaddControl("Button", buttonprops3, {"addActionListener": actionlistener, "setActionCommand": "insert"})  
-# 	optionaddControl("Button", buttonprops4, {"addActionListener": actionlistener, "setActionCommand": "delete"})  
 	optioncontrolcontainerwindowlistener = OptionControlContainerWindowListener(optioncontrolcontainer)		
 	optioncontrolcontainer.addWindowListener(optioncontrolcontainerwindowlistener)  # コントロールコンテナの大きさを変更するとグリッドコントロールの大きさも変更するようにする。
 	mouselistener.optioncontrolcontainer = optioncontrolcontainer
 	rectangle = controlcontainer.getPosSize()  # コントロールコンテナのRectangle Structを取得。px単位。
-	rectangle.X, rectangle.Y = dialogpoint  # クリックした位置を取得。ウィンドウタイトルを含めない座標。
+	controller = doc.getCurrentController()  # 現在のコントローラを取得。
+	visibleareaonscreen = controller.getPropertyValue("VisibleAreaOnScreen")
+	rectangle.X, rectangle.Y = visibleareaonscreen.X, visibleareaonscreen.Y  # 
 	taskcreator = smgr.createInstanceWithContext('com.sun.star.frame.TaskCreator', ctx)
 	args = NamedValue("PosSize", rectangle), NamedValue("FrameName", "controldialog")  # , NamedValue("MakeVisible", True)  # TaskCreatorで作成するフレームのコンテナウィンドウのプロパティ。
 	dialogframe = taskcreator.createInstanceWithArguments(args)  # コンテナウィンドウ付きの新しいフレームの取得。
@@ -132,7 +117,6 @@ class CloseListener(unohelper.Base, XCloseListener):  # ノンモダルダイア
 				dialogstate.update({"OptionCheck": gridpopupmenu.isItemChecked(menuid)})
 		dialogtitle = dialogframe.getTitle()  # コンテナウィンドウタイトルを取得。データ保存のIDに使う。
 		saveData(doc, "dialogstate_{}".format(dialogtitle), dialogstate)  # ダイアログの状態を保存。
-# 		saveData(doc, "GridDatarows_{}".format(dialogtitle), actionlistener.datarows)  # ダイアログのグリッドコントロールの行を保存。
 		gridpopupmenu.removeMenuListener(menulistener)
 		controlcontainer.getControl("Grid1").removeMouseListener(mouselistener)
 		[controlcontainer.getControl(i).removeActionListener(actionlistener) for i in ("Button1", "Button2", "Button3", "Button4")]
@@ -425,43 +409,43 @@ def XWidth(props, m=0):  # 左隣のコントロールからPositionXを取得�
 	return props["PositionX"] + props["Width"] + m  	
 def YHeight(props, m=0):  # 上隣のコントロールからPositionYを取得。mは間隔。
 	return props["PositionY"] + props["Height"] + m
-def getDialogPoint(doc, enhancedmouseevent):  # クリックした位置x yのタプルで返す。但し、一部しか見えてないセルの場合はNoneが返る。TaskCreatorのRectangleには画面の左角からの座標を渡すが、ウィンドウタイトルバーは含まれない。
-	controller = doc.getCurrentController()  # 現在のコントローラを取得。
-	docframe = controller.getFrame()  # フレームを取得。
-	containerwindow = docframe.getContainerWindow()  # コンテナウィドウの取得。
-	accessiblecontextparent = containerwindow.getAccessibleContext().getAccessibleParent()  # コンテナウィンドウの親AccessibleContextを取得する。フレームの子AccessibleContextになる。
-	accessiblecontext = accessiblecontextparent.getAccessibleContext()  # AccessibleContextを取得。
-	for i in range(accessiblecontext.getAccessibleChildCount()): 
-		childaccessiblecontext = accessiblecontext.getAccessibleChild(i).getAccessibleContext()
-		if childaccessiblecontext.getAccessibleRole()==49:  # ROOT_PANEの時。
-			rootpanebounds = childaccessiblecontext.getBounds()  # Yアトリビュートがウィンドウタイトルバーの高さになる。
-			break 
-	else:
-		return  # ウィンドウタイトルバーのAccessibleContextが取得できなかった時はNoneを返す。
-	componentwindow = docframe.getComponentWindow()  # コンポーネントウィンドウを取得。
-	border = controller.getBorder()  # 行ヘッダの幅と列ヘッダの高さの取得のため。
-	accessiblecontext = componentwindow.getAccessibleContext()  # コンポーネントウィンドウのAccessibleContextを取得。
-	for i in range(accessiblecontext.getAccessibleChildCount()):  # 子AccessibleContextについて。
-		childaccessiblecontext = accessiblecontext.getAccessibleChild(i).getAccessibleContext()  # 子AccessibleContextのAccessibleContext。
-		if childaccessiblecontext.getAccessibleRole()==51:  # SCROLL_PANEの時。
-			for j in range(childaccessiblecontext.getAccessibleChildCount()):  # 孫AccessibleContextについて。 
-				grandchildaccessiblecontext = childaccessiblecontext.getAccessibleChild(j).getAccessibleContext()  # 孫AccessibleContextのAccessibleContext。
-				if grandchildaccessiblecontext.getAccessibleRole()==84:  # DOCUMENT_SPREADSHEETの時。これが枠。
-					bounds = grandchildaccessiblecontext.getBounds()  # 枠の位置と大きさを取得(SCROLL_PANEの左上角が原点)。
-					if bounds.X==border.Left and bounds.Y==border.Top:  # SCROLL_PANEに対する相対座標が行ヘッダと列ヘッダと一致する時は左上枠。
-						for k, subcontroller in enumerate(controller):  # 各枠のコントローラについて。インデックスも取得する。
-							cellrange = subcontroller.getReferredCells()  # 見えているセル範囲を取得。一部しかみえていないセルは含まれない。
-							if len(cellrange.queryIntersection(enhancedmouseevent.Target.getRangeAddress())):  # ターゲットが含まれるセル範囲コレクションが返る時その枠がクリックした枠。「ウィンドウの分割」では正しいiは必ずしも取得できない。
-								sourcepointonscreen =  grandchildaccessiblecontext.getLocationOnScreen()  # 左上枠の左上角の点を取得(画面の左上角が原点)。
-								if k==1:  # 左下枠の時。
-									sourcepointonscreen = Point(X=sourcepointonscreen.X, Y=sourcepointonscreen.Y+bounds.Height)
-								elif k==2:  # 右上枠の時。
-									sourcepointonscreen = Point(X=sourcepointonscreen.X+bounds.Width, Y=sourcepointonscreen.Y)
-								elif k==3:  # 右下枠の時。
-									sourcepointonscreen = Point(X=sourcepointonscreen.X+bounds.Width, Y=sourcepointonscreen.Y+bounds.Height)
-								x = sourcepointonscreen.X + enhancedmouseevent.X  # クリックした位置の画面の左上角からのXの取得。
-								y = sourcepointonscreen.Y + enhancedmouseevent.Y + rootpanebounds.Y  # クリックした位置からメニューバーの高さ分下の位置の画面の左上角からのYの取得									
-								return x, y
+# def getDialogPoint(doc, enhancedmouseevent):  # クリックした位置x yのタプルで返す。但し、一部しか見えてないセルの場合はNoneが返る。TaskCreatorのRectangleには画面の左角からの座標を渡すが、ウィンドウタイトルバーは含まれない。
+# 	controller = doc.getCurrentController()  # 現在のコントローラを取得。
+# 	docframe = controller.getFrame()  # フレームを取得。
+# 	containerwindow = docframe.getContainerWindow()  # コンテナウィドウの取得。
+# 	accessiblecontextparent = containerwindow.getAccessibleContext().getAccessibleParent()  # コンテナウィンドウの親AccessibleContextを取得する。フレームの子AccessibleContextになる。
+# 	accessiblecontext = accessiblecontextparent.getAccessibleContext()  # AccessibleContextを取得。
+# 	for i in range(accessiblecontext.getAccessibleChildCount()): 
+# 		childaccessiblecontext = accessiblecontext.getAccessibleChild(i).getAccessibleContext()
+# 		if childaccessiblecontext.getAccessibleRole()==49:  # ROOT_PANEの時。
+# 			rootpanebounds = childaccessiblecontext.getBounds()  # Yアトリビュートがウィンドウタイトルバーの高さになる。
+# 			break 
+# 	else:
+# 		return  # ウィンドウタイトルバーのAccessibleContextが取得できなかった時はNoneを返す。
+# 	componentwindow = docframe.getComponentWindow()  # コンポーネントウィンドウを取得。
+# 	border = controller.getBorder()  # 行ヘッダの幅と列ヘッダの高さの取得のため。
+# 	accessiblecontext = componentwindow.getAccessibleContext()  # コンポーネントウィンドウのAccessibleContextを取得。
+# 	for i in range(accessiblecontext.getAccessibleChildCount()):  # 子AccessibleContextについて。
+# 		childaccessiblecontext = accessiblecontext.getAccessibleChild(i).getAccessibleContext()  # 子AccessibleContextのAccessibleContext。
+# 		if childaccessiblecontext.getAccessibleRole()==51:  # SCROLL_PANEの時。
+# 			for j in range(childaccessiblecontext.getAccessibleChildCount()):  # 孫AccessibleContextについて。 
+# 				grandchildaccessiblecontext = childaccessiblecontext.getAccessibleChild(j).getAccessibleContext()  # 孫AccessibleContextのAccessibleContext。
+# 				if grandchildaccessiblecontext.getAccessibleRole()==84:  # DOCUMENT_SPREADSHEETの時。これが枠。
+# 					bounds = grandchildaccessiblecontext.getBounds()  # 枠の位置と大きさを取得(SCROLL_PANEの左上角が原点)。
+# 					if bounds.X==border.Left and bounds.Y==border.Top:  # SCROLL_PANEに対する相対座標が行ヘッダと列ヘッダと一致する時は左上枠。
+# 						for k, subcontroller in enumerate(controller):  # 各枠のコントローラについて。インデックスも取得する。
+# 							cellrange = subcontroller.getReferredCells()  # 見えているセル範囲を取得。一部しかみえていないセルは含まれない。
+# 							if len(cellrange.queryIntersection(enhancedmouseevent.Target.getRangeAddress())):  # ターゲットが含まれるセル範囲コレクションが返る時その枠がクリックした枠。「ウィンドウの分割」では正しいiは必ずしも取得できない。
+# 								sourcepointonscreen =  grandchildaccessiblecontext.getLocationOnScreen()  # 左上枠の左上角の点を取得(画面の左上角が原点)。
+# 								if k==1:  # 左下枠の時。
+# 									sourcepointonscreen = Point(X=sourcepointonscreen.X, Y=sourcepointonscreen.Y+bounds.Height)
+# 								elif k==2:  # 右上枠の時。
+# 									sourcepointonscreen = Point(X=sourcepointonscreen.X+bounds.Width, Y=sourcepointonscreen.Y)
+# 								elif k==3:  # 右下枠の時。
+# 									sourcepointonscreen = Point(X=sourcepointonscreen.X+bounds.Width, Y=sourcepointonscreen.Y+bounds.Height)
+# 								x = sourcepointonscreen.X + enhancedmouseevent.X  # クリックした位置の画面の左上角からのXの取得。
+# 								y = sourcepointonscreen.Y + enhancedmouseevent.Y + rootpanebounds.Y  # クリックした位置からメニューバーの高さ分下の位置の画面の左上角からのYの取得									
+# 								return x, y
 def menuCreator(ctx, smgr):  #  メニューバーまたはポップアップメニューを作成する関数を返す。
 	def createMenu(menutype, items, attr=None):  # menutypeはMenuBarまたはPopupMenu、itemsは各メニュー項目の項目名、スタイル、適用するメソッドのタプルのタプル、attrは各項目に適用する以外のメソッド。
 		if attr is None:
