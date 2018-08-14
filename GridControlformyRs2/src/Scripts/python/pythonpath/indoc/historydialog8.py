@@ -17,6 +17,8 @@ from com.sun.star.lang import Locale  # Struct
 SHEETNAME = "config"  # データを保存するシート名。
 DATAROWS = []  # グリッドコントロールのデータ行、タプルのタプルやリストのタプルやリストのリスト、の可能性がある。複数クラスからアクセスするのでグローバルにしないといけない。
 def createDialog(xscriptcontext, enhancedmouseevent, dialogtitle, defaultrows=None):  # dialogtitleはダイアログのデータ保存名に使うのでユニークでないといけない。defaultrowsはグリッドコントロールのデフォルトデータ。
+	global DATAROWS
+	DATAROWS = []  # マクロの起動中グローバル変数は保持されるので毎回リセットしないといけない。
 	ctx = xscriptcontext.getComponentContext()  # コンポーネントコンテクストの取得。
 	smgr = ctx.getServiceManager()  # サービスマネージャーの取得。	
 	doc = xscriptcontext.getDocument()  # マクロを起動した時のドキュメントのモデルを取得。   
